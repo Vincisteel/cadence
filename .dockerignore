@@ -1,0 +1,15 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+.venv/
+venv/
+standalone/
+run.sh
+render.yaml
+railway.json
+fly.toml
+README.md
+*.zip
+.shots/
+.shots

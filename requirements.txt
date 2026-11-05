@@ -1,0 +1,5 @@
+flask>=3.0
+gunicorn>=21.2
+yt-dlp>=2025.1.1
+ytmusicapi>=1.10
+requests>=2.31

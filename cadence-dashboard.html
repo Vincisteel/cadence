@@ -1,0 +1,2357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cadence — music dashboard</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#08080d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cadence">
+<meta name="application-name" content="Cadence">
+<meta name="description" content="Search YouTube Music, build radios from any song, keep the queue growing.">
+<link rel="icon" href="/static/pwa/icons/favicon-64.png" sizes="64x64">
+<link rel="apple-touch-icon" href="/static/pwa/icons/apple-touch-icon.png">
+<style>
+/* ── Cadence ── dark, glassy music player ─────────────────────────────── */
+:root{
+  --bg:#08080d;
+  --panel:rgba(20,20,30,.72);
+  --card:rgba(255,255,255,.045);
+  --card-hover:rgba(255,255,255,.085);
+  --line:rgba(255,255,255,.09);
+  --text:#eef0f7;
+  --muted:#969db4;
+  --dim:#6b7188;
+  --accent:#8b5cf6;
+  --accent-2:#22d3ee;
+  --accent-soft:rgba(139,92,246,.16);
+  --radius:16px;
+  --shadow:0 18px 50px -18px rgba(0,0,0,.85);
+  --player-h:96px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow:hidden;
+}
+body::before,body::after{
+  content:"";position:fixed;inset:auto;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0;
+}
+body::before{width:52vw;height:52vw;left:-14vw;top:-18vw;background:radial-gradient(circle at 30% 30%,rgba(139,92,246,.42),transparent 62%)}
+body::after{width:46vw;height:46vw;right:-12vw;bottom:-16vw;background:radial-gradient(circle at 60% 60%,rgba(34,211,238,.30),transparent 62%)}
+svg{width:20px;height:20px;fill:currentColor;flex:0 0 auto}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input[type=range]{appearance:none;-webkit-appearance:none;background:transparent;margin:0;cursor:pointer}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.26);background-clip:content-box}
+
+.app{position:relative;z-index:1;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+
+/* ── top bar ── */
+.topbar{
+  display:flex;align-items:center;gap:18px;padding:14px 22px;
+  border-bottom:1px solid var(--line);backdrop-filter:blur(18px);
+  background:linear-gradient(180deg,rgba(12,12,20,.85),rgba(10,10,16,.6));
+}
+.brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;flex:0 0 auto}
+.brand-mark{display:flex;align-items:flex-end;gap:3px;height:24px}
+.brand-mark span{width:4px;border-radius:3px;background:linear-gradient(180deg,var(--accent-2),var(--accent));animation:eq 1.15s ease-in-out infinite}
+.brand-mark span:nth-child(1){height:12px;animation-delay:-.35s}
+.brand-mark span:nth-child(2){height:22px;animation-delay:-.7s}
+.brand-mark span:nth-child(3){height:16px}
+.brand-name{font-weight:700;font-size:19px;letter-spacing:.2px}
+@keyframes eq{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
+
+.searchwrap{position:relative;flex:1 1 auto;max-width:620px;display:flex;align-items:center;margin:0 auto}
+.searchwrap .sicon{position:absolute;left:14px;color:var(--dim);width:18px;height:18px}
+.searchwrap input{
+  width:100%;padding:12px 44px 12px 42px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.05);color:var(--text);outline:none;font-size:14.5px;
+  transition:border-color .15s,background .15s,box-shadow .15s;
+}
+.searchwrap input:focus{border-color:rgba(139,92,246,.65);background:rgba(255,255,255,.08);box-shadow:0 0 0 4px var(--accent-soft)}
+.searchwrap input::placeholder{color:var(--dim)}
+.searchwrap input::-webkit-search-cancel-button{filter:invert(.6)}
+.searchwrap kbd{
+  position:absolute;right:12px;font-size:11px;color:var(--dim);border:1px solid var(--line);
+  border-radius:6px;padding:2px 7px;background:rgba(255,255,255,.04)
+}
+.searchwrap:focus-within kbd{opacity:0}
+
+.suggest{
+  position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:60;
+  background:rgba(18,18,28,.97);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow);overflow:hidden;backdrop-filter:blur(20px)
+}
+.suggest div{padding:10px 16px;font-size:14px;color:var(--muted);cursor:pointer;display:flex;gap:10px;align-items:center}
+.suggest div svg{width:15px;height:15px;color:var(--dim)}
+.suggest div:hover,.suggest div.active{background:rgba(139,92,246,.18);color:var(--text)}
+
+.ghost-btn{
+  display:flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;
+  border:1px solid var(--line);color:var(--muted);background:rgba(255,255,255,.03);font-size:13.5px;
+  transition:.15s;flex:0 0 auto
+}
+.ghost-btn:hover{color:var(--text);background:rgba(255,255,255,.08)}
+.ghost-btn.active{color:var(--text);border-color:rgba(139,92,246,.5);background:var(--accent-soft)}
+
+/* ── content / views ── */
+.content{display:grid;grid-template-columns:minmax(0,1fr) 336px;min-height:0;transition:grid-template-columns .22s ease}
+.content.queue-hidden{grid-template-columns:minmax(0,1fr) 0px}
+.view{overflow-y:auto;padding:26px 28px 40px;min-height:0}
+.queue-panel{
+  overflow:hidden;border-left:1px solid var(--line);background:var(--panel);
+  display:flex;flex-direction:column;min-height:0;backdrop-filter:blur(20px)
+}
+
+.hero{max-width:760px;margin:4vh auto 0;text-align:center}
+.hero h1{font-size:clamp(30px,4.4vw,50px);line-height:1.08;margin:0 0 14px;font-weight:800;letter-spacing:-.5px}
+.hero h1 em{font-style:normal;background:linear-gradient(96deg,var(--accent-2),var(--accent) 60%,#f472b6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);margin:0 auto 26px;max-width:520px;font-size:15.5px}
+.hero .cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+.section{margin:34px 0 0}
+.section h2{font-size:15px;margin:0 0 14px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:9px}
+.section h2 svg{width:16px;height:16px;color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:9px}
+.chip{
+  padding:8px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);
+  font-size:13.5px;color:var(--muted);transition:.15s;display:inline-flex;gap:8px;align-items:center
+}
+.chip:hover{color:var(--text);background:var(--card-hover);transform:translateY(-1px)}
+.chip.strong{color:var(--text);border-color:rgba(139,92,246,.45);background:var(--accent-soft)}
+.chip small{color:var(--dim)}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;transition:.16s;text-align:left;width:100%}
+.card:hover{background:var(--card-hover);transform:translateY(-2px);border-color:rgba(139,92,246,.35)}
+.card-art{aspect-ratio:1/1;border-radius:10px;overflow:hidden;margin-bottom:10px;background:linear-gradient(140deg,#22223a,#14141f);display:grid;place-items:center}
+.card-art img{width:100%;height:100%;object-fit:cover;display:block}
+.card-art svg{width:34px;height:34px;color:var(--dim)}
+.card-title{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-sub{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+
+/* artist header */
+.artist-head{display:flex;gap:22px;align-items:flex-end;padding:6px 0 22px;border-bottom:1px solid var(--line);margin-bottom:24px;flex-wrap:wrap}
+.artist-head img{width:154px;height:154px;border-radius:50%;object-fit:cover;box-shadow:var(--shadow);background:#1a1a26}
+.artist-head .ah-text{flex:1 1 320px;min-width:0}
+.eyebrow{font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--accent-2);font-weight:700}
+.artist-head h1{font-size:clamp(28px,4vw,42px);margin:6px 0 8px;font-weight:800;letter-spacing:-.4px}
+.artist-head .stats{color:var(--muted);font-size:13.5px;margin-bottom:14px}
+.artist-head .desc{color:var(--dim);font-size:13px;max-width:640px;max-height:3.9em;overflow:hidden}
+
+/* track list */
+.tracks{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.trow{
+  display:grid;grid-template-columns:34px 46px minmax(0,2.3fr) minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:7px 12px;border-radius:11px;cursor:pointer;transition:background .12s;position:relative
+}
+.trow:hover{background:var(--card-hover)}
+.trow.now{background:var(--accent-soft);box-shadow:inset 0 0 0 1px rgba(139,92,246,.3)}
+/* rows shown without an album column shouldn't reserve space for one */
+.tracks.compact .trow{grid-template-columns:34px 46px minmax(0,1fr) auto}
+.tracks.compact .trow .album{display:none}
+/* the album column is the first thing to go when a panel is narrow */
+.grid2 .trow,.queue-panel .trow{grid-template-columns:30px 42px minmax(0,1.9fr) auto}
+.grid2 .trow .album,.grid2 .tracks .trow .album{display:none}
+.trow .idx{color:var(--dim);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;position:relative}
+.trow .idx .playicon{position:absolute;inset:0;display:none;place-items:center}
+.trow .idx .playicon svg{width:15px;height:15px;color:var(--text)}
+.trow:hover .idx .num{display:none}
+.trow:hover .idx .playicon{display:grid}
+.trow .art{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#1c1c28;display:block}
+.trow .meta{min-width:0}
+.trow .tt{font-size:14px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .ta{font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.trow .ta a{color:inherit;text-decoration:none}
+.trow .ta a:hover{color:var(--accent-2);text-decoration:underline}
+.trow .album{font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .album a{color:inherit;text-decoration:none}
+.trow .album a:hover{color:var(--accent-2);text-decoration:underline}
+.trow .end{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:12.5px}
+.trow .addq{opacity:0;transition:.12s}
+.trow:hover .addq{opacity:1}
+.trow .nowbars{display:flex;align-items:flex-end;gap:2px;height:15px;width:15px}
+.trow .nowbars i{width:3px;background:var(--accent-2);border-radius:2px;height:100%;animation:eq .9s ease-in-out infinite;transform-origin:bottom}
+.trow .nowbars i:nth-child(2){animation-delay:-.3s}
+.trow .nowbars i:nth-child(3){animation-delay:-.6s}
+.playing .nowbars i{animation-play-state:running}
+
+.search-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:34px 22px;max-width:560px;margin:0 auto}
+.search-empty .se-icon{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;margin-bottom:6px;
+  background:linear-gradient(140deg,rgba(139,92,246,.28),rgba(34,211,238,.18));border:1px solid rgba(139,92,246,.35)}
+.search-empty .se-icon svg{width:22px;height:22px;color:var(--accent-2)}
+.search-empty h2{margin:0;font-size:17px}
+.search-empty p{margin:2px 0 14px;color:var(--dim);font-size:13px;line-height:1.65}
+
+/* [hidden] must always win over component display rules */
+[hidden]{display:none!important}
+
+/* queue panel */
+.queue-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:20px 20px 14px;border-bottom:1px solid var(--line)}
+.queue-head h2{font-size:15px;margin:0;font-weight:700}
+.queue-head p{margin:4px 0 0;font-size:12px;color:var(--dim)}
+.queue-list{list-style:none;margin:0;padding:10px;overflow-y:auto;min-height:0;flex:1}
+.qrow{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 9px;border-radius:10px;cursor:pointer}
+.qrow:hover{background:var(--card-hover)}
+.qrow.now{background:var(--accent-soft)}
+.qrow img{width:38px;height:38px;border-radius:7px;object-fit:cover;background:#1c1c28}
+.qrow .qt{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .qa{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .qd{font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.queue-empty{padding:26px 20px;color:var(--dim);font-size:13px;text-align:center;line-height:1.7}
+
+/* ── player bar ── */
+.player{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,1.5fr) minmax(0,1fr);align-items:center;gap:20px;
+  padding:12px 22px;border-top:1px solid var(--line);background:rgba(12,12,20,.86);backdrop-filter:blur(22px);min-height:var(--player-h)
+}
+.np{display:flex;align-items:center;gap:13px;min-width:0}
+.np-art{
+  width:54px;height:54px;border-radius:10px;overflow:hidden;flex:0 0 auto;display:grid;place-items:center;
+  background:linear-gradient(140deg,#262640,#151522);border:1px solid var(--line)
+}
+.np-art img{width:100%;height:100%;object-fit:cover;display:block}
+.np-art svg{color:var(--dim)}
+.np-meta{min-width:0}
+.np-title{font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-artist{font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.np-artist a{color:inherit;text-decoration:none}
+.np-artist a:hover{color:var(--accent-2)}
+.in-queue{margin-left:auto}
+
+.controls{display:flex;flex-direction:column;gap:6px;min-width:0}
+.buttons{display:flex;align-items:center;justify-content:center;gap:8px}
+.icon-btn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--muted);transition:.15s}
+.icon-btn:hover{color:var(--text);background:rgba(255,255,255,.08)}
+.icon-btn.on{color:var(--accent-2);background:var(--accent-soft)}
+.icon-btn svg{width:19px;height:19px}
+.play-btn{
+  width:47px;height:47px;border-radius:50%;display:grid;place-items:center;color:#0b0b12;
+  background:linear-gradient(140deg,#a78bfa,#22d3ee);box-shadow:0 8px 22px -8px rgba(139,92,246,.9);transition:.15s
+}
+.play-btn:hover{transform:scale(1.05)}
+.play-btn svg{width:20px;height:20px}
+.seekrow{display:flex;align-items:center;gap:11px}
+.seekrow .t{font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:36px;text-align:center}
+.seekwrap{position:relative;flex:1;height:16px;display:flex;align-items:center}
+.seekwrap input[type=range]{width:100%;height:16px;position:relative;z-index:2}
+.seekwrap input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:rgba(255,255,255,.13)}
+.seekwrap input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:rgba(255,255,255,.13)}
+.seekwrap input[type=range]::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;background:#fff;margin-top:-4px;opacity:0;transition:opacity .15s}
+.seekwrap input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:#fff;opacity:0}
+.seekwrap:hover input[type=range]::-webkit-slider-thumb,.seekwrap input[type=range]:focus::-webkit-slider-thumb{opacity:1}
+.seekwrap:hover input[type=range]::-moz-range-thumb{opacity:1}
+.seekfill{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:4px;border-radius:99px;pointer-events:none;overflow:hidden}
+.seekfill span{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+
+.right{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.vol{width:92px;height:16px}
+.vol::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:rgba(255,255,255,.13)}
+.vol::-moz-range-track{height:4px;border-radius:99px;background:rgba(255,255,255,.13)}
+.vol::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent-2);margin-top:-4px}
+.vol::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:var(--accent-2)}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--accent-2);border:1px solid rgba(34,211,238,.35);background:rgba(34,211,238,.1);padding:4px 10px;border-radius:99px}
+.badge svg{width:13px;height:13px}
+
+.spinner{display:grid;place-items:center;width:30px;height:30px}
+.spinner span{width:19px;height:19px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:var(--accent-2);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* toasts */
+.toasts{position:fixed;bottom:calc(var(--player-h) + 18px);right:22px;z-index:99;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none;max-width:min(420px,calc(100vw - 44px))}
+.toast{
+  background:rgba(26,26,38,.97);border:1px solid var(--line);color:var(--text);padding:11px 18px;border-radius:12px;
+  font-size:13px;line-height:1.55;box-shadow:var(--shadow);animation:pop .22s ease;max-width:100%;text-align:left
+}
+.toast.err{border-color:rgba(244,63,94,.45)}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}}
+
+.empty{padding:60px 10px;text-align:center;color:var(--dim)}
+.empty h3{color:var(--muted);margin:0 0 8px;font-weight:600}
+.skeleton{height:60px;border-radius:11px;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.09),rgba(255,255,255,.04));background-size:200% 100%;animation:sk 1.2s linear infinite;margin-bottom:6px}
+@keyframes sk{to{background-position:-200% 0}}
+
+@media (max-width:900px){
+  .content{grid-template-columns:minmax(0,1fr)}
+  .queue-panel{position:fixed;top:0;right:0;bottom:var(--player-h);width:min(88vw,340px);z-index:80;transform:translateX(102%);transition:transform .24s ease;box-shadow:var(--shadow)}
+  .queue-panel.open{transform:none}
+  .player{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"np right" "controls controls";
+    gap:6px 10px;padding:9px 14px;min-height:0}
+  .np{grid-area:np}.controls{grid-area:controls}.right{grid-area:right;gap:8px}
+  .controls{gap:10px}
+  .seekrow{margin-top:2px}
+  .vol{display:none}
+  .ctrl-add{display:none}
+  .view{padding:18px 14px 30px}
+  .trow{grid-template-columns:26px 42px minmax(0,1fr) auto;gap:10px}
+  .trow .album{display:none}
+  .searchwrap kbd{display:none}
+  .brand-name{display:none}
+}
+
+/* ═══════════════════ dashboard layer ═══════════════════ */
+body{overflow:hidden}
+.app{grid-template-rows:auto minmax(0,1fr) auto}
+.brand-tag{
+  font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent-2);
+  border:1px solid rgba(34,211,238,.32);background:rgba(34,211,238,.08);padding:3px 8px;border-radius:99px;font-weight:700
+}
+.topbar-right{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.ghost-select{
+  appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.03) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23969db4'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right 8px center/16px;
+  border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:9px 30px 9px 14px;font-size:13px;cursor:pointer;outline:none
+}
+.ghost-select:hover{color:var(--text);background-color:rgba(255,255,255,.08)}
+.ghost-select option{background:#14141e;color:var(--text)}
+
+/* three-panel body */
+.body{display:grid;grid-template-columns:236px minmax(0,1fr) 348px;min-height:0;overflow:hidden}
+.body.rail-hidden{grid-template-columns:236px minmax(0,1fr) 0px}
+
+.sidebar{
+  border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:3px;
+  background:rgba(13,13,20,.55);backdrop-filter:blur(18px);overflow-y:auto;min-height:0
+}
+.nav-label{font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--dim);font-weight:700;padding:8px 12px 6px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;color:var(--muted);
+  font-size:14px;font-weight:520;text-align:left;transition:.14s;width:100%
+}
+.nav-item svg{width:17px;height:17px;opacity:.85}
+.nav-item:hover{background:var(--card-hover);color:var(--text)}
+.nav-item.active{background:linear-gradient(96deg,rgba(139,92,246,.22),rgba(34,211,238,.10));color:var(--text);box-shadow:inset 0 0 0 1px rgba(139,92,246,.32)}
+
+.engine{margin-top:auto;border:1px solid var(--line);border-radius:13px;background:var(--card);padding:12px;display:flex;flex-direction:column;gap:8px}
+.engine-row{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--dim)}
+.engine-row b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:600;font-size:12px}
+.engine-bar{height:4px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
+.engine-bar span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .4s}
+
+.main{overflow-y:auto;padding:22px 24px 34px;min-height:0}
+.rail{overflow:hidden;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;backdrop-filter:blur(20px)}
+.rail-body{overflow-y:auto;min-height:0;flex:1}
+.rail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:20px 20px 14px;border-bottom:1px solid var(--line)}
+.rail-head h2{font-size:15px;margin:0;font-weight:700}
+.rail-head p{margin:4px 0 0;font-size:12px;color:var(--dim)}
+
+/* stat tiles */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;min-width:0;position:relative;overflow:hidden}
+.tile::after{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,var(--accent),var(--accent-2));opacity:.75}
+.tile .t-label{font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--dim);font-weight:700;display:flex;align-items:center;gap:6px}
+.tile .t-main{font-size:17px;font-weight:700;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .t-sub{font-size:11.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile.ok .t-sub{color:var(--accent-2)}
+.tile.warn .t-sub{color:#fbbf24}
+.tile .t-spark{position:absolute;right:10px;bottom:8px;width:56px;height:22px;opacity:.55}
+
+/* panels */
+.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;margin-top:16px;align-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-head h2{margin:0;font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px}
+.panel-head h2 svg{width:15px;height:15px;color:var(--accent)}
+.panel-body{padding:14px 16px}
+.panel-body.tight{padding:8px}
+.panel-foot{padding:11px 16px;border-top:1px solid var(--line);display:flex;justify-content:center}
+.link-btn{font-size:12.5px;color:var(--accent-2);display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:99px;border:1px solid rgba(34,211,238,.28);transition:.15s}
+.link-btn:hover{background:rgba(34,211,238,.12);color:#fff}
+.link-btn[disabled]{opacity:.5;cursor:default}
+
+/* now playing hero */
+.np-hero{display:flex;gap:18px;align-items:flex-start;padding:4px}
+.np-hero .art{
+  width:178px;height:178px;border-radius:16px;flex:0 0 auto;background:linear-gradient(140deg,#262640,#151522);
+  overflow:hidden;box-shadow:var(--shadow);display:grid;place-items:center;border:1px solid var(--line)
+}
+.np-hero .art img{width:100%;height:100%;object-fit:cover;display:block}
+.np-hero .art svg{width:44px;height:44px;color:var(--dim)}
+.np-hero .info{min-width:0;flex:1}
+.np-hero .badges{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
+.np-hero h1{font-size:clamp(20px,2.6vw,29px);margin:0 0 8px;font-weight:800;letter-spacing:-.4px;line-height:1.14}
+.np-hero .byline{font-size:14px;color:var(--muted);margin-bottom:4px}
+.np-hero .byline a{color:var(--text);text-decoration:none;font-weight:600}
+.np-hero .byline a:hover{color:var(--accent-2)}
+.np-hero .facts{font-size:12.5px;color:var(--dim);margin-bottom:14px}
+.np-hero .hero-btns{display:flex;gap:9px;flex-wrap:wrap}
+
+.feed{display:flex;flex-direction:column;gap:2px}
+.feed-row{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:11px;align-items:center;padding:7px 9px;border-radius:10px;cursor:pointer;transition:background .12s}
+.feed-row:hover{background:var(--card-hover)}
+.feed-row.now{background:var(--accent-soft)}
+.feed-row img{width:38px;height:38px;border-radius:8px;object-fit:cover;background:#1c1c28}
+.feed-row .ft{font-size:13.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed-row .fa{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reason{font-size:10.5px;color:var(--accent-2);background:rgba(34,211,238,.09);border:1px solid rgba(34,211,238,.2);padding:2px 8px;border-radius:99px;margin-left:7px;white-space:nowrap}
+
+/* trending artist cards */
+.artist-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:11px;padding:6px}
+.artist-card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px;text-align:center;cursor:pointer;transition:.15s;width:100%}
+.artist-card:hover{transform:translateY(-2px);background:var(--card-hover);border-color:rgba(139,92,246,.35)}
+.artist-card img,.artist-card .ph{width:64px;height:64px;border-radius:50%;object-fit:cover;margin:0 auto 8px;display:grid;place-items:center;background:linear-gradient(140deg,#262640,#151522);border:1px solid var(--line)}
+.artist-card .ph svg{width:26px;height:26px;color:var(--dim)}
+.artist-card .ph-ini{font-size:20px;font-weight:700;letter-spacing:.5px;color:rgba(255,255,255,.82)}
+.artist-card .n{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.artist-card .s{font-size:11px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trend-up{color:#4ade80}.trend-down{color:#f87171}.trend-neutral{color:var(--dim)}
+
+/* genre tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
+.tile-btn{
+  position:relative;border-radius:15px;padding:16px;min-height:96px;text-align:left;overflow:hidden;
+  border:1px solid var(--line);background:linear-gradient(135deg,#1b1b2b,#12121c);color:var(--text);transition:.16s
+}
+.tile-btn:hover{transform:translateY(-2px);border-color:rgba(139,92,246,.45)}
+.tile-btn .tb-title{font-size:15px;font-weight:700;position:relative;z-index:2;display:block;max-width:80%}
+.tile-btn .tb-sub{font-size:11.5px;color:var(--muted);position:relative;z-index:2;margin-top:4px;display:block}
+.tile-btn .tb-glow{position:absolute;width:110px;height:110px;border-radius:50%;right:-42px;bottom:-46px;filter:blur(26px);opacity:.75}
+
+/* view headers */
+.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.view-head h1{font-size:clamp(21px,2.6vw,29px);margin:0;font-weight:800;letter-spacing:-.4px}
+.view-head .sub{color:var(--muted);font-size:13px;margin-top:5px}
+.crumbs{font-size:12px;color:var(--dim);margin-bottom:12px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.crumbs button{color:var(--accent-2);font-size:12px}
+.crumbs button:hover{text-decoration:underline}
+
+.empty-panel{padding:34px 18px;text-align:center;color:var(--dim);font-size:13px;line-height:1.7}
+.kbd-hint{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.04)}
+
+@media (max-width:1180px){
+  .ghost-btn span{display:none}
+  .ghost-btn{padding:0 11px}
+  .body{grid-template-columns:74px minmax(0,1fr) 348px}
+  .body.rail-hidden{grid-template-columns:74px minmax(0,1fr) 0px}
+  .nav-item span,.nav-item{font-size:0}
+  .nav-item{justify-content:center;padding:12px}
+  .nav-item svg{width:19px;height:19px}
+  .nav-label{text-align:center;font-size:0;padding:6px}
+  .nav-label::after{content:"•";font-size:12px}
+  .engine{display:none}
+}
+@media (max-width:900px){
+  .body{grid-template-columns:minmax(0,1fr)}
+  .sidebar{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px;gap:6px}
+  .nav-item{width:auto;white-space:nowrap}
+  .nav-item{font-size:13px}
+  .nav-label{display:none}
+  .engine{display:none}
+  .rail{position:fixed;top:0;right:0;bottom:var(--player-h);width:min(88vw,340px);z-index:80;transform:translateX(102%);transition:transform .24s ease;box-shadow:var(--shadow)}
+  .rail.open{transform:none}
+  .grid2{grid-template-columns:minmax(0,1fr)}
+  .main{padding:16px 14px 28px}
+  .np-hero .art{width:118px;height:118px}
+  .topbar-right .ghost-btn span{display:none}
+  .brand-name,.brand-tag{display:none}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Phones (≤640px) — layout tuned for a one-handed, thumb-reachable app
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width:640px){
+  :root{ --player-h:104px; }
+  body{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+
+  /* top bar: compact row of actions, search gets its own full-width row */
+  .topbar{flex-wrap:wrap;gap:8px;padding:9px 11px}
+  .brand{gap:0}
+  .searchwrap{order:3;flex:1 1 100%;max-width:none;margin:0}
+  .searchwrap .sicon{left:12px;width:17px;height:17px}
+  .searchwrap input{padding:10px 14px 10px 37px;font-size:16px;border-radius:12px}
+  .searchwrap kbd{display:none}
+  .suggest{max-height:48vh;overflow-y:auto}
+  .topbar-right{margin-left:auto;gap:8px}
+  .ghost-select{max-width:132px;height:34px;font-size:12px}
+  #modePill{height:34px;padding:0 10px;font-size:11px}
+
+  /* nav: icon strip, easy to thumb */
+  .sidebar{padding:5px;gap:3px}
+  .nav-item{padding:10px 13px;border-radius:10px}
+  .nav-item svg{width:19px;height:19px}
+
+  .main{padding:11px 11px 16px}
+  .view-head h1{font-size:20px}
+  .view-head .sub{font-size:12px}
+
+  /* stat tiles: 2×2 instead of four full-width cards */
+  .stats{grid-template-columns:1fr 1fr;gap:8px}
+  .tile{padding:9px 11px;border-radius:12px}
+  .tile::after{width:2px}
+  .tile .t-label{font-size:9px;letter-spacing:.6px;gap:4px}
+  .tile .t-label svg{width:11px;height:11px}
+  .tile .t-main{font-size:14px;margin-top:3px}
+  .tile .t-sub{font-size:10px;margin-top:1px}
+  .tile .t-spark{display:none}
+
+  /* now playing hero */
+  .np-hero{padding:14px;gap:12px;grid-template-columns:1fr}
+  .np-hero .art,.np-hero img{width:104px;height:104px;margin:0 auto;border-radius:14px}
+  .np-hero h1{font-size:19px;line-height:1.25}
+  .np-hero .hero-btns{gap:7px}
+  .np-hero .hero-btns .chip{font-size:12px;padding:8px 11px}
+
+  /* panels & rows */
+  .grid2{gap:11px;margin-top:11px}
+  .panel-head{padding:11px 12px 9px}
+  .panel-head h2{font-size:12.5px}
+  .panel-body{padding:11px 12px}
+  .panel-body.tight{padding:5px}
+  .trow{grid-template-columns:24px 40px minmax(0,1fr) auto;gap:9px;padding:6px 5px}
+  .trow .art{width:40px;height:40px;border-radius:7px}
+  .trow .album{display:none}
+  .trow .tt{font-size:13.5px}
+  .trow .ta{font-size:11.5px}
+  .trow .end .addq{display:none}         /* += lives in the queue button instead */
+  .artist-strip{gap:8px;grid-auto-columns:96px;padding-bottom:4px}
+  .artist-card{padding:8px}
+  .artist-card img,.artist-card .ph{width:54px;height:54px}
+  .artist-card .n{font-size:11.5px}
+  .tiles{grid-template-columns:1fr 1fr;gap:8px}
+  .tile-btn{padding:12px;min-height:64px}
+  .tb-title{font-size:13px}
+  .chips{gap:6px}
+  .chip{font-size:12px;padding:7px 11px}
+  .crumbs{font-size:11.5px;margin-bottom:10px}
+
+  /* player bar: art + title + transport, then a thin seek line */
+  .player{padding:8px 11px calc(7px + env(safe-area-inset-bottom));
+          gap:2px 8px;min-height:0;grid-template-columns:minmax(0,1fr) auto;
+          grid-template-areas:"np right" "controls controls"}
+  .np{grid-area:np;gap:9px;min-width:0}
+  .np-art{width:42px;height:42px;border-radius:9px}
+  .np-title{font-size:13.5px}
+  .np-artist{font-size:11.5px}
+  .in-queue{display:none}
+  .controls{grid-area:controls;gap:2px}
+  .buttons{gap:12px}
+  .buttons .icon-btn{width:34px;height:34px}
+  .buttons .icon-btn svg{width:19px;height:19px}
+  .play-btn{width:44px;height:44px}
+  .play-btn svg{width:20px;height:20px}
+  #shuffleBtn,#repeatBtn{display:none}          /* declutter; still on S / R keys */
+  .seekrow{gap:8px;margin-top:0}
+  .seekrow .t{font-size:10.5px;min-width:30px}
+  .right{grid-area:right;gap:6px}
+  .right .vol,.right #muteBtn{display:none}     /* volume is the phone's own */
+  .badge{font-size:10px;padding:3px 7px}
+
+  /* queue rail: full-height sheet */
+  .rail{width:min(92vw,340px);bottom:var(--player-h)}
+  .qrow{grid-template-columns:34px minmax(0,1fr) auto;gap:8px;padding:6px}
+  .qrow img{width:34px;height:34px}
+
+  /* toasts clear the taller bottom bar */
+  .toasts{right:10px;left:10px;bottom:calc(var(--player-h) + 10px);max-width:none;align-items:stretch}
+  .toast{max-width:none;text-align:left}
+
+  .cfg-card{padding:18px;border-radius:16px}
+  .cfg-actions{flex-direction:column-reverse}
+  .cfg-btn{width:100%}
+
+  /* reasons on rows: keep them, but stop them dominating the row */
+  .feed-row{grid-template-columns:38px minmax(0,1fr) auto;gap:9px;padding:8px 5px}
+  .feed-row img{width:38px;height:38px}
+  .feed-row .ft{font-size:13px}
+  .feed-row .fa{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .reason{font-size:9.5px;padding:1px 5px;margin-left:4px;vertical-align:1px;max-width:46vw;
+          display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* panel headers must stay on one line */
+  .panel-head{gap:8px}
+  .panel-head h2{font-size:11.5px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .panel-head .link-btn{flex:0 0 auto;font-size:11px;padding:6px 9px;white-space:nowrap}
+  .panel-head > span{display:none}
+
+  /* empty hero */
+  .np-hero .grid2{gap:10px}
+
+  .hero-tip{display:none}
+  .hero-tip-touch{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+  /* hero keeps art beside the text instead of stacking a big square */
+  .np-hero{grid-template-columns:86px minmax(0,1fr);align-items:start;gap:11px}
+  .np-hero .art,.np-hero .art img{width:86px;height:86px;border-radius:12px;margin:0}
+  .np-hero .hero-btns{margin-top:8px;grid-column:1/-1}
+  .np-hero .badges{gap:5px;margin-bottom:5px}
+  .np-hero .badge{font-size:10px;padding:3px 7px}
+  .np-hero .facts{font-size:11.5px}
+  .np-hero .byline{font-size:12.5px}
+}
+/* touch devices never show keyboard hints */
+@media (hover:none){ .hero-tip{display:none} .hero-tip-touch{display:block} .kbd-hint{display:none} .searchwrap kbd{display:none} }
+
+/* ── standalone build: settings + mode pill ─────────────────────────────── */
+.mode-pill{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;
+  border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--dim);
+  font:inherit;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.2px}
+.mode-pill:hover{color:var(--fg);border-color:rgba(255,255,255,.22)}
+.mode-pill.demo{color:#fbbf24;border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.09)}
+.mode-pill.live{color:#4ade80;border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.09)}
+.cfg-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(6,8,14,.72);backdrop-filter:blur(10px)}
+.cfg-overlay[hidden]{display:none}   /* a class-level display: would otherwise defeat [hidden] */
+.cfg-card{width:min(560px,100%);background:linear-gradient(180deg,rgba(26,30,44,.98),rgba(16,19,29,.98));
+  border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:26px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.cfg-card h2{margin:0 0 6px;font-size:19px}
+.cfg-sub{margin:0 0 18px;color:var(--dim);font-size:13px;line-height:1.55}
+.cfg-opt{display:flex;gap:11px;align-items:flex-start;padding:13px 14px;margin-bottom:9px;cursor:pointer;
+  border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.cfg-opt:has(input:checked){border-color:rgba(139,92,246,.55);background:rgba(139,92,246,.10)}
+.cfg-opt input{margin-top:3px;accent-color:#8b5cf6}
+.cfg-opt span{display:block;font-size:13.5px;font-weight:600;line-height:1.4}
+.cfg-opt em{display:block;font-style:normal;font-weight:400;font-size:12px;color:var(--dim);margin-top:3px}
+.cfg-url{width:100%;margin:6px 0 10px;padding:11px 13px;border-radius:11px;border:1px solid var(--line);
+  background:rgba(0,0,0,.35);color:var(--fg);font:inherit;font-size:13px}
+.cfg-url:focus{outline:none;border-color:rgba(139,92,246,.6)}
+.cfg-note{font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:16px}
+.cfg-note.ok{color:#4ade80}.cfg-note.err{color:#f87171}
+.cfg-note code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:5px;font-size:11.5px}
+.cfg-actions{display:flex;gap:10px;justify-content:flex-end}
+.cfg-btn{height:38px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);
+  color:var(--fg);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.cfg-btn:hover{background:rgba(255,255,255,.1)}
+.cfg-btn.primary{background:linear-gradient(135deg,#8b5cf6,#22d3ee);border-color:transparent;color:#0a0713}
+.cfg-btn.primary:hover{filter:brightness(1.08)}
+@media(max-width:900px){.mode-pill{display:none}}
+
+/* install banner (PWA) */
+.install-bar{position:fixed;left:12px;right:12px;bottom:calc(var(--player-h) + 14px);z-index:120;
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:15px;
+  background:linear-gradient(180deg,rgba(32,36,52,.99),rgba(20,23,34,.99));
+  border:1px solid rgba(139,92,246,.4);box-shadow:0 18px 50px rgba(0,0,0,.55);
+  animation:pop .26s ease;max-width:min(560px,calc(100vw - 24px));margin:0 auto}
+.install-bar img{border-radius:9px;flex:0 0 auto}
+.install-bar .ib-text{min-width:0;flex:1}
+.install-bar b{display:block;font-size:13px}
+.install-bar span{display:block;font-size:11.5px;color:var(--dim);line-height:1.4;margin-top:1px}
+.install-bar .ib-go{flex:0 0 auto;height:34px;padding:0 14px;border-radius:9px;border:0;cursor:pointer;
+  background:linear-gradient(135deg,#8b5cf6,#22d3ee);color:#0a0713;font:inherit;font-size:12.5px;font-weight:700}
+.install-bar .ib-x{flex:0 0 auto;width:28px;height:28px;border:0;background:transparent;color:var(--dim);
+  font-size:14px;cursor:pointer;border-radius:7px}
+.install-bar .ib-x:hover{background:rgba(255,255,255,.08);color:var(--fg)}
+
+/* Android: respect notches/gesture bars, kill accidental zoom + text inflation */
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar{padding-top:calc(9px + env(safe-area-inset-top))}
+  .player{padding-bottom:calc(7px + env(safe-area-inset-bottom))}
+  .sidebar{padding-left:calc(5px + env(safe-area-inset-left))}
+}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button,input,select{font-family:inherit}
+@media (display-mode:standalone){
+  body{overscroll-behavior-y:none}
+  .topbar{user-select:none}
+}
+
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.9l11-6.86a1.05 1.05 0 0 0 0-1.8l-11-6.86c-.69-.4-1.56.1-1.56.9Z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 4h3.2v16H7zM13.8 4H17v16h-3.2z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M6 5.4v13.2c0 .77.85 1.24 1.5.84l9.6-6.6a1 1 0 0 0 0-1.68l-9.6-6.6c-.65-.4-1.5.07-1.5.84ZM18.4 4.6h2.2v14.8h-2.2z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M18 5.4v13.2c0 .77-.85 1.24-1.5.84l-9.6-6.6a1 1 0 0 1 0-1.68l9.6-6.6c.65-.4 1.5.07 1.5.84ZM5.6 4.6h-2.2v14.8h2.2z"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M17.6 4.1a1 1 0 0 0-1.1 1.1v.6h-2.3c-.4 0-.8.16-1.06.45l-1.2 1.3a1 1 0 0 0 1.47 1.36l1-1.1h2.1v.65a1 1 0 0 0 1.72.7l2.6-2.6a1 1 0 0 0 0-1.42l-2.6-2.6a1 1 0 0 0-.63-.44Zm.63 10.06h-2.1l-1-1.1a1 1 0 0 0-1.48 1.35l1.2 1.3c.27.3.66.46 1.06.46h2.3v.6a1 1 0 0 0 1.72.7l2.6-2.6a1 1 0 0 0 0-1.42l-2.6-2.6a1 1 0 0 0-1.72.7ZM4.3 6.4h2.9c.4 0 .79.16 1.06.45l7.4 8.05c.27.29.66.45 1.06.45h.9a1 1 0 1 0 0-2h-.5l-7.4-8.05A3 3 0 0 0 7.2 4.4H4.3a1 1 0 0 0 0 2Zm0 11.2h2.9a3 3 0 0 0 2.24-1c.5-.55.55-1.4.04-1.98a1 1 0 0 0-1.45-.08 1 1 0 0 1-.72.3h-3a1 1 0 0 0 0 2Z"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 4.3h8.6a4.4 4.4 0 0 1 4.4 4.4V11a1 1 0 1 1-2 0V8.7a2.4 2.4 0 0 0-2.4-2.4H7v1.55c0 .66-.8 1-1.26.53L3.3 6.14a.75.75 0 0 1 0-1.06l2.44-2.44c.46-.46 1.26-.13 1.26.53Zm10 15.4H8.4A4.4 4.4 0 0 1 4 15.3V13a1 1 0 1 1 2 0v2.3a2.4 2.4 0 0 0 2.4 2.4H17v-1.55c0-.66.8-1 1.26-.53l2.44 2.44c.3.3.3.77 0 1.06l-2.44 2.44c-.46.46-1.26.13-1.26-.53Z"/></symbol>
+  <symbol id="i-repeat1" viewBox="0 0 24 24"><path d="M7 4.3h8.6a4.4 4.4 0 0 1 4.4 4.4V11a1 1 0 1 1-2 0V8.7a2.4 2.4 0 0 0-2.4-2.4H7v1.55c0 .66-.8 1-1.26.53L3.3 6.14a.75.75 0 0 1 0-1.06l2.44-2.44c.46-.46 1.26-.13 1.26.53Zm10 15.4H8.4A4.4 4.4 0 0 1 4 15.3V13a1 1 0 1 1 2 0v2.3a2.4 2.4 0 0 0 2.4 2.4H17v-1.55c0-.66.8-1 1.26-.53l2.44 2.44c.3.3.3.77 0 1.06l-2.44 2.44c-.46.46-1.26.13-1.26-.53Z"/><path d="M12.9 9.4h-1.2v-.95l-1.5.46v-1.1l2.5-.83h.2Zm-1.6 4.2c-.9 0-1.6-.3-2.1-.9s-.75-1.4-.75-2.4v-.7c0-.6.1-1.1.3-1.6.2-.45.5-.8.9-1.05.4-.24.9-.36 1.5-.36s1.1.12 1.55.36c.4.24.7.6.9 1.05.2.46.3.98.3 1.57v.73c0 .6-.1 1.13-.3 1.6-.2.46-.5.81-.9 1.06-.4.25-.9.37-1.5.37Zm-.1-1.2c.4 0 .7-.14.9-.42.2-.3.3-.75.3-1.36v-1c0-.6-.1-1.05-.3-1.34-.2-.28-.5-.42-.9-.42s-.7.14-.9.42c-.2.3-.3.74-.3 1.35v1c0 .6.1 1.06.3 1.35.2.28.5.42.9.42Z" transform="translate(1.6 1.2)"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M13 4.6 8.6 8H5.4A1.4 1.4 0 0 0 4 9.4v5.2A1.4 1.4 0 0 0 5.4 16h3.2l4.4 3.4c.66.51 1.6.04 1.6-.79V5.39c0-.83-.94-1.3-1.6-.79Zm3.7 3.1a1 1 0 0 0-.09 1.41 4.3 4.3 0 0 1 0 5.78 1 1 0 1 0 1.5 1.32 6.3 6.3 0 0 0 0-8.42 1 1 0 0 0-1.41-.09Zm2.6-2.75a1 1 0 1 0-1.35 1.47 8.1 8.1 0 0 1 0 11.16 1 1 0 0 0 1.35 1.47 10.1 10.1 0 0 0 0-14.1Z"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M13 4.6 8.6 8H5.4A1.4 1.4 0 0 0 4 9.4v5.2A1.4 1.4 0 0 0 5.4 16h3.2l4.4 3.4c.66.51 1.6.04 1.6-.79V5.39c0-.83-.94-1.3-1.6-.79Zm4.3 5.1-1.7 1.7-1.7-1.7a1 1 0 0 0-1.42 1.42l1.7 1.7-1.7 1.7a1 1 0 0 0 1.42 1.41l1.7-1.7 1.7 1.7a1 1 0 0 0 1.41-1.41l-1.7-1.7 1.7-1.7a1 1 0 1 0-1.41-1.42Z"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6a1 1 0 0 1 1-1h9a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm0 5a1 1 0 0 1 1-1h9a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm0 5a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm19.1-2.1a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.6-4.4c.55 0 1 .45 1 1v7.4a3.6 3.6 0 0 1-3.6 3.6 1 1 0 0 1 0-2 1.6 1.6 0 0 0 1.6-1.6V10a1 1 0 0 1 1-1Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46l3.24 3.25a1.1 1.1 0 0 0 1.57-1.56l-3.25-3.24A7.5 7.5 0 0 0 10.5 3Zm0 2.2a5.3 5.3 0 1 1 0 10.6 5.3 5.3 0 0 1 0-10.6Z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.4c.3 0 .55.2.63.48l.86 3.2a4.4 4.4 0 0 0 3.13 3.13l3.2.86a.66.66 0 0 1 0 1.26l-3.2.86a4.4 4.4 0 0 0-3.13 3.13l-.86 3.2a.66.66 0 0 1-1.26 0l-.86-3.2a4.4 4.4 0 0 0-3.13-3.13l-3.2-.86a.66.66 0 0 1 0-1.26l3.2-.86A4.4 4.4 0 0 0 10.51 6.08l.86-3.2A.66.66 0 0 1 12 2.4Zm6.4 12.1c.17 0 .32.11.37.28l.4 1.44c.2.72.76 1.28 1.48 1.48l1.44.4a.38.38 0 0 1 0 .73l-1.44.4a2.1 2.1 0 0 0-1.48 1.48l-.4 1.44a.38.38 0 0 1-.73 0l-.4-1.44a2.1 2.1 0 0 0-1.48-1.48l-1.44-.4a.38.38 0 0 1 0-.73l1.44-.4a2.1 2.1 0 0 0 1.48-1.48l.4-1.44c.05-.17.2-.28.37-.28Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M11 5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6Z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 5a1 1 0 0 1 1.42 0L12 9.17 16.18 5A1 1 0 1 1 17.6 6.41L13.41 10.6l4.18 4.18a1 1 0 0 1-1.41 1.41L12 12.01l-4.18 4.18A1 1 0 0 1 6.4 14.78l4.18-4.18L6.4 6.41A1 1 0 0 1 6.4 5Z"/></symbol>
+  <symbol id="i-artist" viewBox="0 0 24 24"><path d="M12 11.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 1.1.9 2 2 2h12a2 2 0 0 0 2-2c0-3.04-3.58-5.5-8-5.5Z"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="#" id="brandLink">
+      <span class="brand-mark"><span></span><span></span><span></span></span>
+      <span class="brand-name">Cadence</span>
+      <span class="brand-tag">dashboard</span>
+    </a>
+
+    <div class="searchwrap">
+      <svg class="sicon"><use href="#i-search"/></svg>
+      <input id="q" type="search" placeholder="Search songs, artists, albums…" autocomplete="off" spellcheck="false" aria-label="Search">
+      <kbd>/</kbd>
+      <div id="suggest" class="suggest" hidden></div>
+    </div>
+
+    <div class="topbar-right">
+      <select id="countrySel" class="ghost-select" title="Trending region" aria-label="Trending region"></select>
+      <button class="ghost-btn" id="queueToggle" title="Queue (Q)"><svg><use href="#i-queue"/></svg><span>Queue</span></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-label">Discover</div>
+      <button class="nav-item" data-nav="overview"><svg><use href="#i-spark"/></svg><span>Overview</span></button>
+      <button class="nav-item" data-nav="search"><svg><use href="#i-search"/></svg><span>Search</span></button>
+      <button class="nav-item" data-nav="trending"><svg><use href="#i-play"/></svg><span>Trending</span></button>
+      <button class="nav-item" data-nav="browse"><svg><use href="#i-queue"/></svg><span>Genres &amp; moods</span></button>
+      <button class="nav-item" data-nav="recent"><svg><use href="#i-artist"/></svg><span>Recently played</span></button>
+
+      <div class="nav-label" style="margin-top:16px">Engine</div>
+      <div class="engine" id="engine">
+        <div class="engine-row"><span>Stream cache</span><b id="enCache">–</b></div>
+        <div class="engine-row"><span>Tracks cached</span><b id="enTracks">–</b></div>
+        <div class="engine-row"><span>Downloads</span><b id="enDownloads">–</b></div>
+        <div class="engine-row"><span>Avg fetch</span><b id="enAvg">–</b></div>
+        <div class="engine-row"><span>In flight</span><b id="enInflight">–</b></div>
+        <div class="engine-row"><span>Uptime</span><b id="enUptime">–</b></div>
+        <div class="engine-bar" title="Cache usage"><span id="enBar"></span></div>
+      </div>
+    </nav>
+
+    <main class="main" id="main"></main>
+
+    <aside class="rail" id="rail">
+      <div class="rail-head">
+        <div>
+          <h2 id="queueTitle">Up next</h2>
+          <p id="queueSub">Suggestions appear as you listen</p>
+        </div>
+        <button class="icon-btn" id="clearQueue" title="Clear queue"><svg><use href="#i-close"/></svg></button>
+      </div>
+      <div class="rail-body"><ol class="queue-list" id="queueList"></ol></div>
+    </aside>
+  </div>
+
+  <footer class="player" id="player">
+    <div class="np">
+      <div class="np-art" id="npArt"><svg><use href="#i-artist"/></svg></div>
+      <div class="np-meta">
+        <div class="np-title" id="npTitle">Nothing playing</div>
+        <div class="np-artist" id="npArtist">Search for a song to begin</div>
+      </div>
+      <button class="icon-btn in-queue" id="addCurrent" title="Add to queue" hidden><svg><use href="#i-plus"/></svg></button>
+    </div>
+
+    <div class="controls">
+      <div class="buttons">
+        <button class="icon-btn" id="shuffleBtn" title="Shuffle (S)"><svg><use href="#i-shuffle"/></svg></button>
+        <button class="icon-btn" id="prevBtn" title="Previous (P)"><svg><use href="#i-prev"/></svg></button>
+        <button class="play-btn" id="playBtn" title="Play / pause (Space)"><svg><use href="#i-play"/></svg></button>
+        <button class="icon-btn" id="nextBtn" title="Next (N)"><svg><use href="#i-next"/></svg></button>
+        <button class="icon-btn" id="repeatBtn" title="Repeat (R)"><svg><use href="#i-repeat"/></svg></button>
+      </div>
+      <div class="seekrow">
+        <span class="t" id="tCur">0:00</span>
+        <div class="seekwrap">
+          <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Seek">
+          <div class="seekfill" id="seekFill"><span></span></div>
+        </div>
+        <span class="t" id="tDur">0:00</span>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="spinner" id="spinner" hidden><span></span></div>
+      <span class="badge" id="radioBadge" hidden><svg><use href="#i-spark"/></svg>Radio</span>
+      <button class="icon-btn" id="muteBtn" title="Mute (M)"><svg><use href="#i-vol"/></svg></button>
+      <input type="range" id="vol" class="vol" min="0" max="1" step="0.01" value="0.9" aria-label="Volume">
+    </div>
+  </footer>
+</div>
+
+<audio id="audio" preload="auto" crossorigin="anonymous"></audio>
+<div class="toasts" id="toasts"></div>
+
+<script>
+  // registers on https (real deployments) and on localhost (local checks)
+  const swOK = location.protocol === 'https:' ||
+               ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  if ('serviceWorker' in navigator && swOK) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .catch(err => console.warn('Service worker unavailable:', err.message));
+    });
+  }
+</script>
+<script>
+/* ── runtime: demo engine + backend connector ── */
+/* Cadence standalone runtime — makes dashboard.js work with no backend at all.
+   Two sources:
+     • demo   → a built-in catalog + a virtual player, so every panel works offline
+     • server → your own Cadence/Flask backend (any URL), for real search & audio
+   Injected by build_standalone.py; the dashboard logic itself is unchanged. */
+(() => {
+  'use strict';
+
+  /* Some browsers deny localStorage on file:// (opaque origin) and throw on mere access,
+     which would take the whole app down. Fall back to memory so the file always runs. */
+  (function ensureStorage() {
+    let ok = true;
+    try { window.localStorage.getItem('__probe__'); } catch { ok = false; }
+    if (ok) return;
+    const mem = new Map();
+    const shim = {
+      getItem: k => (mem.has(String(k)) ? mem.get(String(k)) : null),
+      setItem: (k, v) => { mem.set(String(k), String(v)); },
+      removeItem: k => { mem.delete(String(k)); },
+      clear: () => mem.clear(),
+      key: i => [...mem.keys()][i] ?? null,
+      get length() { return mem.size; },
+    };
+    try { Object.defineProperty(window, 'localStorage', { value: shim, configurable: true }); }
+    catch { try { window.localStorage = shim; } catch {} }
+  })();
+
+  const CFG_KEY = 'cadence:cfg';
+  let CFG = { mode: 'demo', base: 'http://localhost:8000' };
+  try { Object.assign(CFG, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); } catch {}
+  const isDemo = () => CFG.mode !== 'server';
+
+  /* ───────────────────────── deterministic helpers ───────────────────────── */
+  const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const pick = (arr, seed) => arr[hash(String(seed)) % arr.length];
+  const range = (n, seed) => Array.from({ length: n }, (_, i) => i + (hash(String(seed)) % 7));
+
+  /* artwork: inline SVG gradient → works offline, from file://, no CORS */
+  const artCache = new Map();
+  function art(seed, label) {
+    if (artCache.has(seed)) return artCache.get(seed);
+    const h = hash(seed);
+    const h1 = h % 360, h2 = (h1 + 40 + (h >> 8) % 90) % 360;
+    const initials = (label || seed).split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="hsl(${h1} 78% 58%)"/><stop offset="1" stop-color="hsl(${h2} 72% 34%)"/>
+</linearGradient><radialGradient id="r" cx="0.25" cy="0.2" r="0.9">
+<stop offset="0" stop-color="rgba(255,255,255,.5)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/>
+</radialGradient></defs>
+<rect width="300" height="300" fill="url(#g)"/><rect width="300" height="300" fill="url(#r)"/>
+<circle cx="${60 + h % 180}" cy="${70 + (h >> 5) % 160}" r="${40 + (h >> 9) % 55}" fill="rgba(255,255,255,.14)"/>
+<text x="150" y="168" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="86"
+ font-weight="700" fill="rgba(255,255,255,.92)" text-anchor="middle">${initials}</text></svg>`;
+    const uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    artCache.set(seed, uri);
+    return uri;
+  }
+
+  /* ───────────────────────── the demo catalog ───────────────────────────── */
+  const ARTISTS = [
+    { name: 'Neon Vesper', genre: 'synthwave', blurb: 'Analog synths, midnight drives.', since: 2014 },
+    { name: 'Marta Okonkwo', genre: 'neo-soul', blurb: 'Velvet vocals over warm Rhodes chords.', since: 2011 },
+    { name: 'Glass Harbor', genre: 'indie rock', blurb: 'Reverb-soaked guitars from the coast.', since: 2016 },
+    { name: 'Kaito Mori', genre: 'lofi', blurb: 'Tape hiss and rainy-window pianos.', since: 2018 },
+    { name: 'The Paper Lanterns', genre: 'folk', blurb: 'Harmonies recorded in one room.', since: 2009 },
+    { name: 'Solene', genre: 'dream pop', blurb: 'Wide-screen textures, whispered hooks.', since: 2017 },
+    { name: 'Ravi Chandran Trio', genre: 'jazz', blurb: 'Modal jazz with modern edges.', since: 2005 },
+    { name: 'Basement Choir', genre: 'post-punk', blurb: 'Angular riffs, chorused bass.', since: 2013 },
+    { name: 'Aiko & the Static', genre: 'electropop', blurb: 'Glitched beats and bright toplines.', since: 2019 },
+    { name: 'Elian Cruz', genre: 'afrobeat', blurb: 'Polyrhythms built for open air.', since: 2012 },
+    { name: 'Mira Halloran', genre: 'piano', blurb: 'Solo piano, patient and cinematic.', since: 2008 },
+    { name: 'Static Bloom', genre: 'shoegaze', blurb: 'Wall-of-sound guitars, soft focus.', since: 2015 },
+  ];
+  const GENRE_TITLES = ['synthwave', 'neo-soul', 'indie rock', 'lofi', 'folk', 'dream pop', 'jazz', 'post-punk', 'electropop', 'afrobeat', 'piano', 'shoegaze'];
+  const TITLES = {
+    'Neon Vesper': ['Midnight Arcade', 'Chrome Horizon', 'Laser Bloom', 'Afterglow Drive'],
+    'Marta Okonkwo': ['Honey Static', 'Slow Bloom', 'Kitchen Table', 'Velvet Hours'],
+    'Glass Harbor': ['Saltwater Radio', 'Ferry Lights', 'Low Tide Riot', 'Coastline Static'],
+    'Kaito Mori': ['Rain on the Balcony', 'Paper Cups', 'Second Coffee', 'Window Seat'],
+    'The Paper Lanterns': ['Winter Orchard', 'Hollow Pines', 'Long Way Home', 'Sunday Letters'],
+    'Solene': ['Glasshouse', 'Half Light', 'Soft Machine', 'Marble Sky'],
+    'Ravi Chandran Trio': ['Blue Interval', 'Snake Charmer', 'Modal Drift', 'Late Set'],
+    'Basement Choir': ['Concrete Hymn', 'Sirens', 'Blackout Kids', 'Tape Loop'],
+    'Aiko & the Static': ['Pixel Heart', 'Overdrive', 'Glitch Bloom', 'Night Bus'],
+    'Elian Cruz': ['Open Air', 'Marimba Sunrise', 'Coast Road', 'Dance Until Dawn'],
+    'Mira Halloran': ['Folded Light', 'Nocturne for Rain', 'Six Winters', 'Quiet Room'],
+    'Static Bloom': ['Gauze', 'Slow Collapse', 'Hyacinth', 'Feedback Bloom'],
+  };
+  const ALBUMS = {
+    'Neon Vesper': ['Chrome Horizon', 'Night Signals'],
+    'Marta Okonkwo': ['Velvet Hours', 'Honey Static'],
+    'Glass Harbor': ['Saltwater Radio', 'Low Tide'],
+    'Kaito Mori': ['Window Seat', 'Second Coffee'],
+    'The Paper Lanterns': ['Winter Orchard', 'Long Way Home'],
+    'Solene': ['Glasshouse', 'Half Light'],
+    'Ravi Chandran Trio': ['Late Set', 'Modal Drift'],
+    'Basement Choir': ['Concrete Hymn', 'Blackout Kids'],
+    'Aiko & the Static': ['Pixel Heart', 'Night Bus'],
+    'Elian Cruz': ['Open Air', 'Marimba Sunrise'],
+    'Mira Halloran': ['Folded Light', 'Quiet Room'],
+    'Static Bloom': ['Gauze', 'Hyacinth'],
+  };
+
+  const artistId = name => 'AR' + hash(name).toString(36).slice(0, 14);
+  const albumId = name => 'AL' + hash(name).toString(36).slice(0, 14);
+  const ARTIST_BY_ID = new Map(ARTISTS.map(a => [artistId(a.name), a]));
+
+  const CATALOG = [];
+  ARTISTS.forEach((a, ai) => {
+    (TITLES[a.name] || []).forEach((title, si) => {
+      const alb = ALBUMS[a.name][si % ALBUMS[a.name].length];
+      const vid = 'demo' + hash(a.name + title).toString(36).slice(0, 9);
+      CATALOG.push({
+        video_id: vid,
+        title,
+        artists: [{ name: a.name, id: artistId(a.name) }],
+        artist_text: a.name,
+        album: { name: alb, id: albumId(alb) },
+        duration: 168 + (hash(vid) % 130),
+        year: a.since + (si % 9),
+        _genre: a.genre,
+      });
+    });
+  });
+  const CAT_BY_ID = new Map(CATALOG.map(t => [t.video_id, t]));
+  const artistObj = name => {
+    const a = ARTISTS.find(x => x.name === name) || ARTISTS[0];
+    return { id: artistId(a.name), name: a.name, thumbnail: 'artist:' + a.name,
+             subscribers: ((hash(a.name) % 900) / 100 + 0.4).toFixed(1) + 'M',
+             monthly_listeners: 200000 + (hash(a.name) % 8000000) };
+  };
+
+  const REGIONS = ['ZZ', 'CH', 'US', 'GB', 'DE', 'FR', 'IT', 'ES', 'AT', 'NL', 'SE', 'NO', 'DK', 'FI', 'BE', 'PT', 'PL', 'CZ', 'IE', 'GR', 'JP', 'KR', 'IN', 'BR', 'MX', 'AR', 'CA', 'AU', 'NZ', 'ZA', 'NG', 'TR'];
+  const REGION_NAMES = { ZZ: 'Global', CH: 'Switzerland', US: 'United States', GB: 'United Kingdom', DE: 'Germany', FR: 'France', IT: 'Italy', ES: 'Spain', AT: 'Austria', NL: 'Netherlands', SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', BE: 'Belgium', PT: 'Portugal', PL: 'Poland', CZ: 'Czechia', IE: 'Ireland', GR: 'Greece', JP: 'Japan', KR: 'South Korea', IN: 'India', BR: 'Brazil', MX: 'Mexico', AR: 'Argentina', CA: 'Canada', AU: 'Australia', NZ: 'New Zealand', ZA: 'South Africa', NG: 'Nigeria', TR: 'Türkiye' };
+
+  const MOODS = ['Chill', 'Commute', 'Energize', 'Feel good', 'Focus', 'Romance', 'Sad hours', 'Sleep', 'Workout', 'Dinner party', 'Sunday morning'];
+  const GENRES = ['Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz', 'Lo-fi', 'Indie', 'Metal', 'Classical', 'Soul', 'Funk', 'Folk', 'Latin', 'Ambient'];
+
+  /* shuffle that is stable per seed so a page re-render doesn't reshuffle */
+  const stableShuffle = (arr, seed) => arr.map(t => [hash(seed + t.video_id), t]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  const strip = t => ({ video_id: t.video_id, title: t.title, artists: t.artists, artist_text: t.artist_text, album: t.album, duration: t.duration, year: t.year });
+
+  const playlistsFor = (key, seed) => {
+    const names = [`${key} Essentials`, `${key} Deep Cuts`, `Late Night ${key}`, `${key} Rising`, `Pure ${key}`, `${key} for the Ride`, `${key} Classics`, `Fresh ${key}`];
+    return names.map((title, i) => ({
+      title, id: 'PL' + hash(key + title).toString(36).slice(0, 14),
+      thumbnail: art('pl:' + key + title, title), count: 18 + (hash(title) % 40), _key: key, _i: i,
+    }));
+  };
+
+  /* ───────────────────────── simulated engine telemetry ──────────────────── */
+  const STARTED = Date.now();
+  const STATS = { cached_bytes: 0, cached_tracks: 0, downloads: 0, download_failures: 0, secs: 0, downloads_inflight: 0 };
+  const CACHED = new Map();   // video_id → bytes, so the tile reports distinct tracks
+  const CACHE_LIMIT = 3 * 1024 * 1024 * 1024;
+
+  /* ───────────────────────── the demo "API" ──────────────────────────────── */
+  function demoApi(path) {
+    const [rawPath, qs] = path.split('?');
+    const q = new URLSearchParams(qs || '');
+    const p = rawPath.replace(/\/+$/, '');
+
+    if (p === '/api/stats') {
+      return { cached_tracks: STATS.cached_tracks, cached_bytes: STATS.cached_bytes, downloads: STATS.downloads,
+        download_failures: STATS.download_failures, avg_download_seconds: STATS.downloads ? +(STATS.secs / STATS.downloads).toFixed(2) : null,
+        downloads_inflight: STATS.downloads_inflight, bytes_served: STATS.cached_bytes,
+        uptime_seconds: Math.round((Date.now() - STARTED) / 1000), cache_limit_bytes: CACHE_LIMIT };
+    }
+    if (p.startsWith('/api/ready/')) return { cached: true, bytes: 3_400_000 + (hash(p) % 900_000) };
+
+    if (p === '/api/genres') {
+      return { categories: [
+        { title: 'Moods & moments', items: MOODS.map(m => ({ title: m, params: 'mood:' + m })) },
+        { title: 'Genres', items: GENRES.map(g => ({ title: g, params: 'genre:' + g })) },
+      ] };
+    }
+    if (p === '/api/genre') {
+      const params = q.get('params') || '';
+      const key = params.split(':').slice(1).join(':') || 'Chill';
+      return { playlists: playlistsFor(key, params) };
+    }
+    if (p === '/api/playlist') {
+      const id = q.get('id') || '';
+      const limit = Math.min(Number(q.get('limit') || 80) || 80, 150);
+      const pl = playlistsFor('Chill', 'x').find(x => x.id === id);
+      const key = id.slice(2, 6) || 'chill';
+      const tracks = stableShuffle(CATALOG, key).slice(0, limit).map(strip);
+      return { title: pl ? pl.title : 'Playlist', author: 'Cadence demo library', track_count: tracks.length, tracks };
+    }
+    if (p === '/api/album') {
+      const id = q.get('id') || '';
+      const name = ARTISTS.map(a => ALBUMS[a.name]).flat().find(al => albumId(al) === id) || 'Chrome Horizon';
+      const tracks = CATALOG.filter(t => t.album && t.album.name === name).map(strip);
+      const year = tracks.length ? tracks[0].year : 2024;
+      return { id, title: name, year, artist: tracks.length ? tracks[0].artist_text : '', tracks };
+    }
+    if (p === '/api/artist') {
+      const name = q.get('name') || (ARTIST_BY_ID.get(q.get('id') || '') || {}).name || 'Neon Vesper';
+      const a = ARTISTS.find(x => x.name === name) || ARTISTS[0];
+      const top = CATALOG.filter(t => t.artist_text === a.name).map(strip);
+      const similar = ARTISTS.filter(x => x.genre !== a.genre).slice(0, 6)
+        .map(x => { const o = artistObj(x.name); return { id: o.id, name: o.name, thumbnail: o.thumbnail }; });
+      const albums = ALBUMS[a.name].map(al => ({ id: albumId(al), title: al, type: 'Album',
+        year: (CATALOG.find(t => t.album.name === al) || {}).year }));
+      return { ...artistObj(a.name), description: a.blurb + ' Active since ' + a.since + '.',
+        top_tracks: top, similar, albums };
+    }
+    if (p === '/api/artist/radio') {
+      const name = (ARTIST_BY_ID.get(q.get('id') || '') || {}).name || 'Neon Vesper';
+      const own = CATALOG.filter(t => t.artist_text === name);
+      const others = stableShuffle(CATALOG.filter(t => t.artist_text !== name), name).slice(0, 24);
+      return { station_name: name + ' Radio', tracks: [...own, ...others].map(strip) };
+    }
+    if (p === '/api/radio') {
+      const seedId = q.get('videoId') || '';
+      const seed = CAT_BY_ID.get(seedId) || CATALOG[0];
+      const same = CATALOG.filter(t => t.artist_text === seed.artist_text && t.video_id !== seed.video_id);
+      const vibe = stableShuffle(CATALOG.filter(t => t._genre === seed._genre && t.artist_text !== seed.artist_text), seedId);
+      const rest = stableShuffle(CATALOG.filter(t => t._genre !== seed._genre), seedId);
+      const tracks = [...same, ...vibe, ...rest].slice(0, 25).map(strip);
+      return { seed: seed.title, tracks };
+    }
+    if (p === '/api/suggest') {
+      const v = (q.get('q') || '').toLowerCase();
+      const pool = [...new Set([...CATALOG.map(t => t.title), ...ARTISTS.map(a => a.name)])];
+      return { suggestions: pool.filter(s => s.toLowerCase().includes(v)).slice(0, 8) };
+    }
+    if (p === '/api/trending') {
+      const country = (q.get('country') || 'ZZ').toUpperCase();
+      const limit = Math.min(Number(q.get('limit') || 24) || 24, 50);
+      const tracks = stableShuffle(CATALOG, 'chart:' + country).slice(0, limit).map(strip);
+      const artists = stableShuffle(ARTISTS, 'artists:' + country).slice(0, 20).map((a, i) => {
+        const o = artistObj(a.name);
+        const trend = hash(a.name + country) % 3;
+        return { id: o.id, name: o.name, thumbnail: o.thumbnail, rank: i + 1, trend: trend === 0 ? 'up' : trend === 1 ? 'down' : null };
+      });
+      return { country, country_name: REGION_NAMES[country] || country, countries: REGIONS, tracks, artists };
+    }
+    if (p === '/api/search') {
+      const term = (q.get('q') || '').toLowerCase().trim();
+      const tokens = term.replace(/[-–—]/g, ' ').split(/\s+/).filter(t => t.length > 1);
+      const fieldScore = (field, weight) => tokens.reduce((n, tok) => n + (field.includes(tok) ? weight : 0), 0);
+
+      const scored = CATALOG.map(t => {
+        const title = t.title.toLowerCase();
+        const artist = t.artist_text.toLowerCase();
+        const album = ((t.album && t.album.name) || '').toLowerCase();
+        const genre = t._genre.toLowerCase();
+        let sc = fieldScore(title, 6) + fieldScore(artist, 9) + fieldScore(album, 3) + fieldScore(genre, 4);
+        if (term && artist === term) sc += 60;
+        if (term && title === term) sc += 55;
+        if (term && artist.includes(term)) sc += 25;
+        if (term && title.includes(term)) sc += 20;
+        // every word matching is much better than a partial match
+        if (tokens.length > 1 && tokens.every(tok => (title + ' ' + artist + ' ' + genre).includes(tok))) sc += 18;
+        return [sc, t];
+      }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).map(x => x[1]);
+
+      // artists: name/genre matches first, then whoever performs the matching songs
+      const byName = ARTISTS.filter(a => term && (a.name.toLowerCase().includes(term) ||
+        tokens.some(tok => a.name.toLowerCase().includes(tok) || a.genre.includes(tok))));
+      const bySong = scored.map(t => ARTISTS.find(a => a.name === t.artist_text)).filter(Boolean);
+      const artists = [...new Map([...byName, ...bySong].map(a => [a.name, a])).values()].slice(0, 8)
+        .map(a => { const o = artistObj(a.name); return { id: o.id, name: o.name, thumbnail: o.thumbnail }; });
+
+      // honest: no filler tracks when nothing matches
+      return {
+        tracks: scored.slice(0, 24).map(strip),
+        artists,
+        demo: true,
+        suggestions: scored.length || artists.length ? [] :
+          [...new Set([...ARTISTS.map(a => a.name), ...GENRES])].slice(0, 6),
+      };
+    }
+    return {};
+  }
+
+  /* ───────────────────────── virtual player (demo mode) ──────────────────── */
+  function makeVirtualAudio() {
+    const listeners = new Map();
+    let timer = null;
+    const emit = (type, extra) => (listeners.get(type) || []).forEach(fn => fn(Object.assign({ type, target: el }, extra)));
+    const el = {
+      currentTime: 0, duration: 0, volume: 0.9, muted: false, paused: true, _src: '',
+      addEventListener(type, fn) { if (!listeners.has(type)) listeners.set(type, []); listeners.get(type).push(fn); },
+      removeEventListener() {},
+      dispatchEvent(e) { emit(e && e.type ? e.type : 'unknown'); return true; },
+      play() {
+        el.paused = false; emit('playing');
+        clearInterval(timer);
+        timer = setInterval(() => {
+          if (el.paused) return;
+          el.currentTime = Math.min(el.duration || 0, el.currentTime + 0.25);
+          emit('timeupdate');
+          if (el.duration && el.currentTime >= el.duration) { clearInterval(timer); el.paused = true; emit('ended'); }
+        }, 250);
+        return Promise.resolve();
+      },
+      pause() { el.paused = true; clearInterval(timer); emit('pause'); },
+      load() {},
+      get src() { return el._src; },
+      set src(v) {
+        el._src = v;
+        const id = String(v).split('/').pop();
+        const t = CAT_BY_ID.get(id);
+        el.duration = t ? t.duration : 0;
+        el.currentTime = 0;
+        STATS.downloads += 1; STATS.secs += 0.4 + (hash(id) % 90) / 100;
+        if (!CAT_BY_ID.has(id) || CACHED.has(id)) { STATS.downloads_inflight = 0; return; }
+        const bytes = Math.round(el.duration * 16000);
+        CACHED.set(id, bytes);
+        STATS.cached_tracks = CACHED.size;
+        STATS.cached_bytes = Math.min(CACHE_LIMIT, STATS.cached_bytes + bytes);
+      },
+    };
+    return el;
+  }
+
+  /* ───────────────────────── source dispatcher ───────────────────────────── */
+  async function serverFetch(path, opts) {
+    let r;
+    try { r = await fetch(CFG.base.replace(/\/$/, '') + path, opts); }
+    catch (e) {
+      const err = new Error('Can\'t reach the Cadence server at ' + CFG.base + ' — check the URL in ⚙ Settings, or switch to Demo mode.');
+      err.code = 'offline'; throw err;
+    }
+    let data = null; try { data = await r.json(); } catch {}
+    if (!r.ok) {
+      const err = new Error((data && data.error) || `Request failed (${r.status})`);
+      err.status = r.status; err.code = data && data.code; err.hint = data && data.hint; throw err;
+    }
+    return data;
+  }
+
+  const SRC = {
+    get mode() { return CFG.mode; },
+    get base() { return CFG.base; },
+    async api(path, opts) {
+      if (isDemo()) return demoApi(path);
+      return serverFetch(path, opts);
+    },
+    thumb(vid) { return isDemo() ? art('v:' + vid, (CAT_BY_ID.get(vid) || {}).title || vid) : CFG.base.replace(/\/$/, '') + '/api/thumb/' + vid; },
+    img(u) {
+      if (isDemo()) {
+        const label = String(u).startsWith('artist:') ? String(u).slice(7) : 'Artist';
+        return art('i:' + u, label);
+      }
+      return CFG.base.replace(/\/$/, '') + '/api/img?u=' + encodeURIComponent(u);
+    },
+    makeAudio(el) {
+      if (isDemo()) return makeVirtualAudio();
+      // the page may live on another origin, so /api/stream/... must be made absolute
+      const base = CFG.base.replace(/\/$/, '');
+      try {
+        const proto = Object.getOwnPropertyDescriptor(window.HTMLMediaElement.prototype, 'src');
+        Object.defineProperty(el, 'src', {
+          configurable: true,
+          get() { return proto.get.call(el); },
+          set(v) { proto.set.call(el, String(v).startsWith('/api/') ? base + v : v); },
+        });
+      } catch {}
+      return el;
+    },
+    async prefetch(id) { if (isDemo()) return; try { await fetch(CFG.base.replace(/\/$/, '') + '/api/prefetch/' + id, { method: 'POST' }); } catch {} },
+    async diagnose(id) {
+      if (isDemo()) return { kind: 'transient' };
+      try {
+        const r = await fetch(CFG.base.replace(/\/$/, '') + '/api/stream/' + id, { headers: { Range: 'bytes=0-1' } });
+        if (r.ok) return { kind: 'transient' };
+        let d = {}; try { d = await r.json(); } catch {}
+        return { kind: d.code || 'unknown', message: d.error, hint: d.hint };
+      } catch { return { kind: 'offline' }; }
+    },
+    saveCfg(next) {
+      Object.assign(CFG, next);
+      try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch {}
+      location.reload();
+    },
+  };
+  window.__SRC__ = SRC;
+  window.__DEMO_CATALOG__ = CATALOG;
+
+  /* ───────────────────────── settings dialog (injected) ──────────────────── */
+  function mountUI() {
+    const topbar = document.querySelector('.topbar');
+    if (!topbar) return;
+    const pill = document.createElement('button');
+    pill.className = 'mode-pill ' + (isDemo() ? 'demo' : 'live');
+    pill.id = 'modePill';
+    pill.innerHTML = isDemo() ? '● demo' : '● connected';
+    pill.title = isDemo() ? 'Demo data — click to connect a backend' : 'Live backend: ' + CFG.base;
+    topbar.appendChild(pill);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'cfg-overlay';
+    wrap.id = 'cfgOverlay';
+    wrap.hidden = true;
+    wrap.innerHTML = `
+      <div class="cfg-card" role="dialog" aria-modal="true" aria-label="Dashboard settings">
+        <h2>Dashboard settings</h2>
+        <p class="cfg-sub">This file runs on its own. Point it at a backend for real search and playback — or keep exploring the built-in demo library.</p>
+        <label class="cfg-opt"><input type="radio" name="cfgmode" value="demo" ${isDemo() ? 'checked' : ''}>
+          <span><b>Demo mode</b><em>Built-in catalog, simulated playback. Works offline, from a file, on any static host.</em></span></label>
+        <label class="cfg-opt"><input type="radio" name="cfgmode" value="server" ${isDemo() ? '' : 'checked'}>
+          <span><b>Connect to a Cadence backend</b><em>Real YouTube Music search, artist radios and audio streaming.</em></span></label>
+        <input class="cfg-url" id="cfgUrl" type="url" placeholder="http://localhost:8000" value="${CFG.base.replace(/"/g, '&quot;')}">
+        <div class="cfg-note" id="cfgNote">Run <code>./run.sh</code> in the Cadence project, then use <code>http://localhost:8000</code>.<br>
+          If this page is served over <b>https</b>, the backend must be https too (browsers block mixed content).</div>
+        <div class="cfg-actions">
+          <button class="cfg-btn" id="cfgTest">Test connection</button>
+          <button class="cfg-btn primary" id="cfgSave">Save &amp; reload</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    const open = () => { wrap.hidden = false; };
+    SRC.openSettings = open;
+    pill.addEventListener('click', open);
+    wrap.addEventListener('click', e => { if (e.target === wrap) wrap.hidden = true; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') wrap.hidden = true; });
+
+    const note = wrap.querySelector('#cfgNote');
+    wrap.querySelector('#cfgTest').addEventListener('click', async () => {
+      const url = wrap.querySelector('#cfgUrl').value.trim().replace(/\/$/, '') || 'http://localhost:8000';
+      note.className = 'cfg-note';
+      note.textContent = 'Testing ' + url + ' …';
+      try {
+        const r = await fetch(url + '/api/stats', { cache: 'no-store' });
+        const d = await r.json();
+        note.className = 'cfg-note ok';
+        note.textContent = `Connected ✓ — ${d.cached_tracks} cached tracks, ${(d.cached_bytes / 1048576).toFixed(1)} MB ready.`;
+      } catch {
+        note.className = 'cfg-note err';
+        note.textContent = 'No answer from ' + url + '. Is the backend running, and does it allow cross-origin requests?';
+      }
+    });
+    wrap.querySelector('#cfgSave').addEventListener('click', () => {
+      const mode = wrap.querySelector('input[name="cfgmode"]:checked').value;
+      const base = wrap.querySelector('#cfgUrl').value.trim().replace(/\/$/, '') || 'http://localhost:8000';
+      SRC.saveCfg({ mode, base });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountUI);
+  else mountUI();
+
+  /* ── PWA: install banner (Chrome/Edge/Samsung Internet, incl. Android) ── */
+  const isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.navigator.standalone === true;
+
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (isStandalone() || localStorage.getItem('cadence:install-dismissed')) return;
+    showInstallBar();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    const bar = document.getElementById('installBar');
+    if (bar) bar.remove();
+    try { localStorage.setItem('cadence:install-dismissed', '1'); } catch {}
+  });
+
+  function showInstallBar() {
+    if (document.getElementById('installBar') || isStandalone()) return;
+    const bar = document.createElement('div');
+    bar.className = 'install-bar';
+    bar.id = 'installBar';
+    bar.innerHTML = `
+      <img src="icons/icon-192.png" alt="" width="40" height="40">
+      <div class="ib-text"><b>Install Cadence</b><span>Add it to your home screen — opens full screen, works offline.</span></div>
+      <button class="ib-go" id="ibInstall">Install</button>
+      <button class="ib-x" id="ibDismiss" aria-label="Not now">✕</button>`;
+    document.body.appendChild(bar);
+    bar.querySelector('#ibInstall').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      if (outcome !== 'accepted') bar.remove();
+    });
+    bar.querySelector('#ibDismiss').addEventListener('click', () => {
+      try { localStorage.setItem('cadence:install-dismissed', '1'); } catch {}
+      bar.remove();
+    });
+  }
+
+  // Android Chrome fires this when the criteria are met; keep the UI in sync if it retries
+  setInterval(() => { if (deferredPrompt && !isStandalone()) showInstallBar(); }, 4000);
+})();
+
+/* ── dashboard ── */
+/* ── Cadence dashboard ─────────────────────────────────────────────────────
+   Views: overview · search · trending · browse (genres/moods) · artist · album
+          playlist · recent           Engine stats + buffer-ahead telemetry.
+   ──────────────────────────────────────────────────────────────────────── */
+(() => {
+'use strict';
+
+const $ = (s, r = document) => r.querySelector(s);
+const audio = window.__SRC__.makeAudio($('#audio'));
+const main = $('#main');
+
+/* ── state ──────────────────────────────────────────────────────────────── */
+const state = {
+  queue: [], queueSource: null, index: -1, current: null,
+  shuffle: false, repeat: 0, queueLabel: null, station: null, growing: false,
+  suggestionsAdded: 0,
+  viewLists: {}, artistCache: {},
+  country: localStorage.getItem('cadence:country') || 'CH',
+  token: 0, buffered: { id: null, ready: false, bytes: 0 },
+};
+const LABELS = { search: 'Search results', top: 'Top songs', album: 'Album', recent: 'Recently played',
+                 playlist: 'Playlist', trending: 'Trending', over_rec: 'Recently played', feed: 'Suggestions' };
+
+const LS = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem('cadence:' + k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('cadence:' + k, JSON.stringify(v)); } catch {} },
+};
+
+/* ── helpers ────────────────────────────────────────────────────────────── */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const icon = n => `<svg aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const thumb = vid => window.__SRC__.thumb(vid);
+const imgp = u => window.__SRC__.img(u);
+const artistName = t => (t && (t.artist_text || 'Unknown artist')) || 'Unknown artist';
+
+function fmtTime(sec) {
+  if (!sec || !isFinite(sec) || sec < 0) return '0:00';
+  sec = Math.floor(sec);
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+}
+const fmtBytes = b => {
+  if (!b) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB']; const i = Math.min(Math.floor(Math.log(b) / Math.log(1024)), 3);
+  return `${(b / 1024 ** i).toFixed(i ? 1 : 0)} ${u[i]}`;
+};
+const fmtDur = s => { s = Math.round(s || 0); const m = Math.floor(s / 60); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m ${s % 60}s`; };
+
+function toast(msg, isErr = false, ms = 3200) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 320); }, ms);
+}
+async function api(path, opts) { return window.__SRC__.api(path, opts); }
+
+// A dead <audio> element tells us nothing useful, so ask the server what went wrong.
+let blockingReported = false;
+async function diagnoseStream(id) { return window.__SRC__.diagnose(id); }
+
+function reportBlocked(info) {
+  if (blockingReported || window.__SRC__.mode === 'demo') return;
+  blockingReported = true;
+  toast(`${info.message || 'Playback is blocked'} ${info.hint ? '— ' + info.hint : ''}`, true, 12000);
+  const badge = $('#radioBadge');
+  if (badge) { badge.hidden = false; badge.textContent = 'streaming blocked'; }
+}
+
+const artistHref = a => `#/artist/${a.id ? encodeURIComponent(a.id) : ''}?name=${encodeURIComponent(a.name || '')}`;
+
+// On touch screens a tap on a track row gets "adjusted" by the browser to the nearest
+// link — so the artist name inside a row would hijack taps meant to play the song.
+// Rows stay plain text on touch; artists remain reachable via cards and the hero buttons.
+const COARSE_POINTER = !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
+
+function artistLink(a) {
+  if (COARSE_POINTER) return esc(a.name);
+  // real hash link: shareable + right-clickable, and works even when the API gives no browse id
+  return `<a href="${artistHref(a)}" data-artist data-artist-id="${esc(a.id || '')}" data-artist-name="${esc(a.name)}">${esc(a.name)}</a>`;
+}
+
+/* ── shared renderers ───────────────────────────────────────────────────── */
+function trackRows(tracks, listName, opts = {}) {
+  if (!tracks || !tracks.length) return `<div class="empty-panel">No tracks here.</div>`;
+  const showAlbum = opts.showAlbum !== false;
+  return `<div class="tracks${opts.showAlbum === false ? ' compact' : ''}">` + tracks.map((t, i) => `
+    <div class="trow" data-vid="${esc(t.video_id)}" data-list="${esc(listName)}" data-i="${i}">
+      <div class="idx"><span class="num" data-n="${opts.startNum ? opts.startNum + i : i + 1}">${opts.startNum ? opts.startNum + i : i + 1}</span>
+        <span class="playicon">${icon('play')}</span></div>
+      <img class="art" src="${thumb(t.video_id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div class="meta">
+        <div class="tt">${esc(t.title)}</div>
+        <div class="ta">${(t.artists || []).map(artistLink).join(', ') || esc(artistName(t))}</div>
+      </div>
+      ${showAlbum ? `<div class="album">${t.album && t.album.id ? `<a data-album="${esc(t.album.id)}" href="#/album/${encodeURIComponent(t.album.id)}">${esc(t.album.name || '')}</a>` : esc((t.album && t.album.name) || '')}</div>` : '<div class="album"></div>'}
+      <div class="end">
+        <button class="icon-btn addq" data-action="similar" title="Play similar songs">${icon('spark')}</button>
+        <button class="icon-btn addq" data-action="queue" title="Add to queue">${icon('plus')}</button>
+        <span>${esc(fmtTime(t.duration))}</span>
+      </div>
+    </div>`).join('') + `</div>`;
+}
+
+function skeletons(n = 8) { return Array.from({ length: n }, () => `<div class="skeleton"></div>`).join(''); }
+
+const initials = name => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+function artistCard(a) {
+  const src = a.thumbnail ? imgp(a.thumbnail) : '';
+  const pic = src
+    ? `<img src="${src}" alt="" loading="lazy" onerror="this.classList.add('is-broken');this.style.display='none';this.nextElementSibling.style.display='grid'"><div class="ph ph-ini" style="display:none">${esc(initials(a.name))}</div>`
+    : `<div class="ph ph-ini">${esc(initials(a.name))}</div>`;
+  const trend = a.trend === 'up' ? ' <span class="trend-up">▲</span>' : a.trend === 'down' ? ' <span class="trend-down">▼</span>' : '';
+  return `<button class="artist-card" data-artist data-artist-id="${esc(a.id || '')}" data-artist-name="${esc(a.name)}">
+    ${pic}
+    <div class="n">${esc(a.name)}</div>
+    <div class="s">${a.rank ? `#${a.rank} · ` : ''}${esc(a.subscribers || 'Artist')}${trend}</div>
+  </button>`;
+}
+
+function markNowPlaying() {
+  const vid = state.current && state.current.video_id;
+  document.querySelectorAll('.trow, .qrow, .feed-row').forEach(el => {
+    const on = vid && el.dataset.vid === vid;
+    el.classList.toggle('now', !!on);
+    const num = el.querySelector('.idx .num');
+    if (num) num.innerHTML = on ? `<span class="nowbars"><i></i><i></i><i></i></span>` : (num.dataset.n || '');
+  });
+}
+
+/* ── router ─────────────────────────────────────────────────────────────── */
+const routes = {
+  overview: () => renderOverview(),
+  search: q => renderSearchView(q.get('q') || ''),
+  trending: () => renderTrendingView(),
+  browse: () => renderBrowse(),
+  genre: (q, path) => renderGenre(path, q.get('title') || ''),
+  playlist: (q, path) => renderPlaylist(path, q.get('title') || ''),
+  album: (q, path) => renderAlbum(path),
+  artist: (q, path) => renderArtistView(path, q.get('name') || ''),
+  recent: () => renderRecentView(),
+};
+
+function go(route) { location.hash = '#' + route; }
+function currentRoute() { const h = location.hash.replace(/^#\/?/, '') || 'overview'; return '/' + h; }
+
+function renderRoute() {
+  const raw = location.hash.replace(/^#\/?/, '') || 'overview';
+  const [pathPart, queryPart] = raw.split('?');
+  const segs = pathPart.split('/').filter(Boolean);
+  const name = segs[0] || 'overview';
+  const arg = segs[1] ? decodeURIComponent(segs.slice(1).join('/')) : '';
+  const q = new URLSearchParams(queryPart || '');
+  const fn = routes[name] || routes.overview;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
+  main.scrollTop = 0;
+  fn(q, arg);
+}
+
+/* ── overview ───────────────────────────────────────────────────────────── */
+async function renderOverview() {
+  const token = ++state.token;
+  const recent = LS.get('recent', []).slice(0, 6);
+
+  main.innerHTML = `
+    <section class="stats" id="statTiles">
+      ${statNowPlaying()} ${statQueue()} ${statBuffer()} ${statRadio()}
+    </section>
+
+    <div class="grid2">
+      <section class="panel" id="npPanel">
+        <div class="panel-head"><h2>${icon('play')}Now playing</h2><span class="badge" id="npBadge" hidden>${icon('spark')}Radio</span></div>
+        <div class="panel-body" id="npBody">${nowPlayingHero()}</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>${icon('spark')}Suggestion feed</h2>
+          <span style="font-size:11.5px;color:var(--dim)" id="feedCount"></span>
+        </div>
+        <div class="panel-body tight" id="feedBody"></div>
+        <div class="panel-foot">
+          <button class="link-btn" id="moreSuggestions">${icon('spark')}Load more suggestions</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid2">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>${icon('play')}Trending in <span id="trendRegion">…</span></h2>
+          <button class="link-btn" data-nav-to="trending">Open charts</button>
+        </div>
+        <div class="panel-body tight" id="trendMini">${skeletons(5)}</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>${icon('artist')}Trending artists</h2></div>
+        <div class="artist-strip" id="artistMini">${skeletons(4)}</div>
+      </section>
+    </div>
+
+    ${recent.length ? `<section class="panel" style="margin-top:16px">
+      <div class="panel-head"><h2>${icon('queue')}Recently played</h2>
+        <button class="link-btn" data-nav-to="recent">See all</button></div>
+      <div class="panel-body tight">${trackRows(recent, 'over_rec', { showAlbum: false })}</div>
+    </section>` : ''}`;
+
+  state.viewLists.over_rec = recent;
+  paintFeed();
+  paintNowPlaying();
+  $('#moreSuggestions').addEventListener('click', async e => {
+    e.currentTarget.disabled = true;
+    const grew = await growQueue(true);
+    e.currentTarget.disabled = false;
+    if (!grew) toast('No more suggestions for this track', true);
+  });
+  main.querySelectorAll('[data-nav-to]').forEach(b => b.addEventListener('click', () => go('/' + b.dataset.navTo)));
+
+  // trending panels
+  try {
+    const data = await api(`/api/trending?country=${state.country}&limit=12`);
+    if (token !== state.token) return;
+    fillCountrySelect(data.countries);
+    const region = $('#trendRegion'); if (region) region.textContent = data.country_name;
+    const mini = $('#trendMini');
+    if (mini) {
+      state.viewLists.trending = data.tracks;
+      mini.innerHTML = trackRows(data.tracks.slice(0, 5), 'trending', { startNum: 1, showAlbum: false });
+    }
+    const strip = $('#artistMini');
+    if (strip) strip.innerHTML = data.artists.slice(0, 8).map(artistCard).join('') || '<div class="empty-panel">No chart data</div>';
+    markNowPlaying();
+  } catch (e) {
+    const mini = $('#trendMini'); if (mini) mini.innerHTML = `<div class="empty-panel">Charts unavailable — ${esc(e.message)}</div>`;
+    const strip = $('#artistMini'); if (strip) strip.innerHTML = '';
+  }
+}
+
+function nowPlayingHero() {
+  const t = state.current;
+  if (!t) return `<div class="np-hero"><div class="art">${icon('artist')}</div>
+    <div class="info"><h1 style="color:var(--muted)">Nothing playing</h1>
+    <div class="byline">Search for a song, or start a station from the panels below.</div>
+    <div class="facts hero-tip">Tip: press <span class="kbd-hint">/</span> to jump to search, <span class="kbd-hint">space</span> to play/pause.</div>
+    <div class="facts hero-tip-touch">Tap a row to play, or open Trending and Genres below.</div>
+    <div class="hero-btns">
+      <button class="chip strong" data-action="surprise">${icon('spark')}&nbsp;Surprise me</button>
+    </div></div></div>`;
+  return `<div class="np-hero" id="heroBox">
+    <div class="art"><img src="${thumb(t.video_id)}" alt=""></div>
+    <div class="info">
+      <div class="badges">
+        <span class="badge">${icon('play')}<span id="heroState">Loading…</span></span>
+        ${state.station ? `<span class="badge">${icon('spark')}${esc(state.station)}</span>` : ''}
+      </div>
+      <h1>${esc(t.title)}</h1>
+      <div class="byline">${(t.artists || []).map(artistLink).join(', ') || esc(artistName(t))}</div>
+      <div class="facts" id="heroFacts">${esc(t.album && t.album.name || '')}${t.duration ? ` · ${fmtTime(t.duration)}` : ''}</div>
+      <div class="hero-btns">
+        <button class="chip strong" data-action="playpause">${icon('play')}&nbsp;<span id="heroBtnLabel">Play</span></button>
+        <button class="chip" data-action="similar-now">${icon('spark')}&nbsp;Play similar songs</button>
+        ${firstArtistId(t) ? `<button class="chip" data-action="artist-radio" data-artist-id="${esc(firstArtistId(t))}" data-artist-name="${esc(artistName(t))}">${icon('spark')}&nbsp;Artist radio</button>` : ''}
+        ${firstArtistId(t) ? `<button class="chip" data-artist data-artist-id="${esc(firstArtistId(t))}" data-artist-name="${esc(artistName(t))}">${icon('artist')}&nbsp;Open artist</button>` : ''}
+      </div>
+    </div></div>`;
+}
+function firstArtistId(t) { return ((t && t.artists) || []).find(a => a.id)?.id || null; }
+
+/* stat tiles */
+function statNowPlaying() {
+  const t = state.current;
+  return `<div class="tile" id="tileNow"><div class="t-label">${icon('play')}Now playing</div>
+    <div class="t-main" id="tnTitle">${t ? esc(t.title) : '—'}</div>
+    <div class="t-sub" id="tnSub">${t ? esc(artistName(t)) : 'nothing loaded'}</div></div>`;
+}
+function statQueue() {
+  return `<div class="tile" id="tileQueue"><div class="t-label">${icon('queue')}Queue</div>
+    <div class="t-main" id="tqMain">${state.queue.length} tracks</div>
+    <div class="t-sub" id="tqSub">${state.current ? `track ${state.index + 1} of ${state.queue.length}` : 'idle'}</div></div>`;
+}
+function statBuffer() {
+  return `<div class="tile" id="tileBuf"><div class="t-label">${icon('play')}Buffered ahead</div>
+    <div class="t-main" id="tbMain">–</div>
+    <div class="t-sub" id="tbSub">waiting for playback</div></div>`;
+}
+function statRadio() {
+  return `<div class="tile" id="tileRadio"><div class="t-label">${icon('spark')}Radio engine</div>
+    <div class="t-main" id="trMain">${state.suggestionsAdded} suggested</div>
+    <div class="t-sub" id="trSub">${state.radioLabel ? esc(state.radioLabel) : 'no station yet'}</div></div>`;
+}
+
+function paintNowPlaying() {
+  const token = state.token;
+  const body = $('#npBody');
+  if (body) body.innerHTML = nowPlayingHero();
+  const tn = $('#tnTitle'), ts = $('#tnSub');
+  if (tn) tn.textContent = state.current ? state.current.title : '—';
+  if (ts) ts.textContent = state.current ? artistName(state.current) : 'nothing loaded';
+  updateHeroState();
+  paintStats();
+  void token;
+}
+
+function updateHeroState() {
+  const el = $('#heroState'), label = $('#heroBtnLabel');
+  if (el) el.textContent = state.current ? (audio.paused ? 'Paused' : 'Playing') : '';
+  if (label) label.textContent = audio.paused ? 'Play' : 'Pause';
+}
+
+function paintStats() {
+  const q = $('#tqMain'); if (q) { q.textContent = `${state.queue.length} tracks`; $('#tqSub').textContent = state.current ? `track ${state.index + 1} of ${state.queue.length}` : 'idle'; }
+  const r = $('#trMain'); if (r) { r.textContent = `${state.suggestionsAdded} suggested`; $('#trSub').textContent = state.station || state.queueLabel || 'no station yet'; }
+  const badge = $('#npBadge');
+  if (badge) badge.hidden = !state.station;
+  const tb = $('#tbMain'), tbs = $('#tbSub');
+  if (tb && tbs) {
+    if (!state.buffered.id) { tb.textContent = '–'; tbs.textContent = 'waiting for playback'; }
+    else if (state.buffered.ready) { tb.textContent = 'Ready ✓'; tbs.textContent = `${fmtBytes(state.buffered.bytes)} cached for the next track`; $('.tile')?.classList.add('ok'); $('#tileBuf')?.classList.add('ok'); }
+    else { tb.textContent = 'Buffering…'; tbs.textContent = 'next track is being fetched'; $('#tileBuf')?.classList.remove('ok'); }
+  }
+  const heroFacts = $('#heroFacts');
+  if (heroFacts && state.current) {
+    const d = audio.duration || state.current.duration || 0;
+    heroFacts.textContent = [state.current.album && state.current.album.name, d ? fmtTime(d) : '', audio.currentTime ? `${fmtTime(audio.currentTime)} elapsed` : '']
+      .filter(Boolean).join(' · ');
+  }
+}
+
+/* suggestion feed */
+function paintFeed() {
+  const body = $('#feedBody'); if (!body) return;
+  const upcoming = state.queue.slice(state.index + 1, state.index + 8);
+  const count = $('#feedCount');
+  if (count) count.textContent = state.queue.length > state.index + 1 ? `${state.queue.length - state.index - 1} in queue` : '';
+  if (!upcoming.length) {
+    body.innerHTML = `<div class="empty-panel">${state.current
+      ? 'Queue is running low — suggestions will appear in a moment.'
+      : 'Play something and Cadence will suggest what comes next.'}</div>`;
+    return;
+  }
+  const curArtist = state.current ? artistName(state.current) : '';
+  body.innerHTML = `<div class="feed">` + upcoming.map((t, i) => {
+    const sameArtist = state.current && artistName(t) === curArtist;
+    const reason = i === 0 ? 'Up next' : sameArtist ? `More from ${esc(artistName(t))}` : `Similar to ${esc(curArtist)}`;
+    const qi = state.index + 1 + i;
+    return `<div class="feed-row" data-vid="${esc(t.video_id)}" data-qi="${qi}">
+      <img src="${thumb(t.video_id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div style="min-width:0">
+        <div class="ft">${esc(t.title)}</div>
+        <div class="fa">${esc(artistName(t))}<span class="reason">${reason}</span></div>
+      </div>
+      <span style="font-size:11.5px;color:var(--dim)">${esc(fmtTime(t.duration))}</span>
+    </div>`;
+  }).join('') + `</div>`;
+  markNowPlaying();
+}
+
+/* ── search ─────────────────────────────────────────────────────────────── */
+async function renderSearchView(query) {
+  const token = ++state.token;
+  if (!query) {
+    main.innerHTML = `<div class="view-head"><div><h1>Search</h1><div class="sub">Find any song, artist, album or playlist on YouTube Music.</div></div></div>
+      <section class="panel"><div class="panel-body">
+        <div class="chips">${['Queen', 'Daft Punk', 'Drake', 'Lo-fi beats', 'Nina Simone', 'Coldplay', 'Beyoncé', 'Pink Floyd', 'Bad Bunny', 'Jazz classics']
+          .map(s => `<button class="chip" data-search="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+      </div></section>`;
+    return;
+  }
+  main.innerHTML = `<div class="view-head"><div><h1>“${esc(query)}”</h1><div class="sub">Searching YouTube Music…</div></div></div>${skeletons(8)}`;
+  try {
+    const data = await api(`/api/search?q=${encodeURIComponent(query)}&limit=24`);
+    if (token !== state.token) return;
+    const tracks = data.tracks || [], artists = data.artists || [];
+
+    // Nothing at all: say so plainly, and offer a way forward instead of an empty page
+    if (!tracks.length && !artists.length) {
+      const chips = (data.suggestions && data.suggestions.length)
+        ? data.suggestions
+        : ['daft punk', 'taylor swift', 'jazz classics', 'lo-fi beats'];
+      main.innerHTML = `
+        <div class="view-head"><div><h1>“${esc(query)}”</h1><div class="sub">No matches</div></div></div>
+        <section class="panel"><div class="panel-body">
+          <div class="search-empty">
+            <div class="se-icon">${icon('search')}</div>
+            <h2>Nothing found for “${esc(query)}”</h2>
+            <p>${window.__SRC__ && window.__SRC__.mode === 'demo'
+              ? 'This file is running in demo mode, so it can only search its built-in library. Connect a backend to search all of YouTube Music.'
+              : 'Try a different spelling, or one of these searches:'}</p>
+            <div class="chips" style="justify-content:center">${chips.map(c => `<button class="chip" data-search="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+            ${window.__SRC__ && window.__SRC__.mode === 'demo'
+              ? '<button class="link-btn" style="margin-top:14px" data-action="open-settings">Connect a backend →</button>' : ''}
+          </div>
+        </div></section>`;
+      return;
+    }
+
+    state.viewLists.search = tracks;
+    const count = `${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'}${artists.length ? ` · ${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}` : ''}`;
+    main.innerHTML = `
+      <div class="view-head"><div><h1>“${esc(query)}”</h1><div class="sub">${count}</div></div></div>
+      ${artists.length ? `<section class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><h2>${icon('artist')}Artists</h2>
+          <span style="font-size:11.5px;color:var(--dim)">${artists.length}</span></div>
+        <div class="artist-strip">${artists.slice(0, 10).map(artistCard).join('')}</div></section>` : ''}
+      <section class="panel">
+        <div class="panel-head"><h2>${icon('play')}Songs</h2>
+          ${tracks.length ? `<button class="link-btn" data-action="play-list" data-list="search">${icon('play')}Play all</button>` : ''}</div>
+        <div class="panel-body tight">${tracks.length ? trackRows(tracks, 'search') : '<div class="empty-panel">No songs matched — try the artists above.</div>'}</div>
+      </section>`;
+    markNowPlaying();
+  } catch (e) {
+    if (token !== state.token) return;
+    main.innerHTML = `<div class="view-head"><div><h1>“${esc(query)}”</h1><div class="sub">Search failed</div></div></div>
+      <section class="panel"><div class="panel-body"><div class="search-empty">
+        <div class="se-icon">${icon('search')}</div>
+        <h2>Couldn't run that search</h2>
+        <p>${esc(e.message)}</p>
+        <button class="chip strong" data-search="${esc(query)}">Try again</button>
+      </div></div></section>`;
+  }
+}
+
+/* ── trending ───────────────────────────────────────────────────────────── */
+async function renderTrendingView() {
+  const token = ++state.token;
+  main.innerHTML = `<div class="view-head"><div><h1>Trending</h1><div class="sub">YouTube Music charts</div></div></div>${skeletons(8)}`;
+  try {
+    const data = await api(`/api/trending?country=${state.country}&limit=24`);
+    if (token !== state.token) return;
+    fillCountrySelect(data.countries);
+    state.viewLists.trending = data.tracks;
+    main.innerHTML = `
+      <div class="view-head">
+        <div><h1>Trending in ${esc(data.country_name)}</h1><div class="sub">Updated from the YouTube Music charts</div></div>
+        <button class="link-btn" data-action="play-list" data-list="trending">${icon('play')}Play the chart</button>
+      </div>
+      <section class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><h2>${icon('play')}Charting tracks</h2><span style="font-size:11.5px;color:var(--dim)">${data.tracks.length} tracks</span></div>
+        <div class="panel-body tight">${trackRows(data.tracks, 'trending')}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>${icon('artist')}Trending artists</h2></div>
+        <div class="artist-strip">${data.artists.map(artistCard).join('')}</div>
+      </section>`;
+    markNowPlaying();
+  } catch (e) {
+    if (token !== state.token) return;
+    main.innerHTML = `<div class="empty-panel">Charts unavailable — ${esc(e.message)}</div>`;
+  }
+}
+
+function fillCountrySelect(options) {
+  const sel = $('#countrySel');
+  if (!sel || !options || !options.length) return;
+  const names = { ZZ: '🌍 Global', CH: '🇨🇭 Switzerland', US: '🇺🇸 United States', GB: '🇬🇧 United Kingdom',
+    DE: '🇩🇪 Germany', FR: '🇫🇷 France', IT: '🇮🇹 Italy', ES: '🇪🇸 Spain', AT: '🇦🇹 Austria',
+    NL: '🇳🇱 Netherlands', SE: '🇸🇪 Sweden', JP: '🇯🇵 Japan', KR: '🇰🇷 South Korea', BR: '🇧🇷 Brazil',
+    CA: '🇨🇦 Canada', AU: '🇦🇺 Australia', IN: '🇮🇳 India', MX: '🇲🇽 Mexico', PL: '🇵🇱 Poland', PT: '🇵🇹 Portugal' };
+  if (sel.dataset.filled === options.join(',')) return;
+  sel.innerHTML = options.map(c => `<option value="${esc(c)}" ${c === state.country ? 'selected' : ''}>${esc(names[c] || c)}</option>`).join('');
+  sel.dataset.filled = options.join(',');
+  sel.value = state.country;
+}
+$('#countrySel').addEventListener('change', e => {
+  state.country = e.target.value;
+  localStorage.setItem('cadence:country', state.country);
+  if ((currentRoute().includes('trending')) || currentRoute() === '/overview') renderRoute();
+});
+
+/* ── browse: genres & moods ─────────────────────────────────────────────── */
+const GENRE_COLORS = [['#8b5cf6', '#22d3ee'], ['#f472b6', '#8b5cf6'], ['#22d3ee', '#4ade80'], ['#fbbf24', '#f472b6'], ['#60a5fa', '#a78bfa'], ['#4ade80', '#22d3ee']];
+async function renderBrowse() {
+  const token = ++state.token;
+  main.innerHTML = `<div class="view-head"><div><h1>Genres &amp; moods</h1><div class="sub">Browse YouTube Music moods, moments and genres</div></div></div>${skeletons(6)}`;
+  try {
+    const data = await api('/api/genres');
+    if (token !== state.token) return;
+    let ci = 0;
+    main.innerHTML = `<div class="view-head"><div><h1>Genres &amp; moods</h1><div class="sub">Pick a vibe — every tile leads to ready-made playlists</div></div></div>` +
+      data.categories.map(cat => `
+        <section class="panel" style="margin-bottom:16px">
+          <div class="panel-head"><h2>${icon('queue')}${esc(cat.title)}</h2><span style="font-size:11.5px;color:var(--dim)">${cat.items.length} tiles</span></div>
+          <div class="panel-body">
+            <div class="tiles">${cat.items.map(it => {
+              const [a, b] = GENRE_COLORS[ci++ % GENRE_COLORS.length];
+              return `<button class="tile-btn" data-genre="${esc(it.params)}" data-title="${esc(it.title)}">
+                <span class="tb-glow" style="background:radial-gradient(circle,${a},${b})"></span>
+                <span class="tb-title">${esc(it.title)}</span>
+                <span class="tb-sub">Open playlists →</span></button>`;
+            }).join('')}</div>
+          </div>
+        </section>`).join('');
+  } catch (e) {
+    if (token !== state.token) return;
+    main.innerHTML = `<div class="empty-panel">Couldn't load genres — ${esc(e.message)}</div>`;
+  }
+}
+
+async function renderGenre(params, title) {
+  const token = ++state.token;
+  main.innerHTML = `<div class="crumbs"><button data-nav-to="browse">Genres &amp; moods</button>› <span>${esc(title)}</span></div>${skeletons(6)}`;
+  try {
+    const data = await api(`/api/genre?params=${encodeURIComponent(params)}`);
+    if (token !== state.token) return;
+    main.innerHTML = `
+      <div class="crumbs"><button data-nav-to="browse">Genres &amp; moods</button>› <span>${esc(title)}</span></div>
+      <div class="view-head"><div><h1>${esc(title)}</h1><div class="sub">${data.playlists.length} playlists curated by YouTube Music</div></div></div>
+      <div class="tiles">${data.playlists.map(p => `
+        <button class="tile-btn" data-playlist="${esc(p.id)}" data-title="${esc(p.title)}" style="min-height:168px;padding:0;display:flex;flex-direction:column">
+          <span style="display:block;width:100%;aspect-ratio:16/10;background:linear-gradient(135deg,#1e1e2f,#12121c);overflow:hidden">
+            ${p.thumbnail ? `<img src="${imgp(p.thumbnail)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">` : ''}
+          </span>
+          <span style="padding:11px 12px;display:block">
+            <span class="tb-title" style="font-size:13.5px">${esc(p.title)}</span>
+            <span class="tb-sub">${esc(p.count || '')} ${p.count ? 'songs' : 'playlist'}</span>
+          </span>
+        </button>`).join('')}</div>`;
+  } catch (e) {
+    if (token !== state.token) return;
+    main.innerHTML = `<div class="empty-panel">Couldn't load playlists — ${esc(e.message)}</div>`;
+  }
+}
+
+async function renderPlaylist(id, title) {
+  const token = ++state.token;
+  main.innerHTML = `<div class="crumbs"><button data-nav-to="browse">Genres &amp; moods</button>› <span>${esc(title || 'Playlist')}</span></div>${skeletons(8)}`;
+  try {
+    const data = await api(`/api/playlist?id=${encodeURIComponent(id)}&limit=80`);
+    if (token !== state.token) return;
+    state.viewLists.playlist = data.tracks;
+    main.innerHTML = `
+      <div class="crumbs"><button data-nav-to="browse">Genres &amp; moods</button>› <span>${esc(data.title || title)}</span></div>
+      <div class="view-head">
+        <div><h1>${esc(data.title || title)}</h1><div class="sub">${data.tracks.length} tracks${data.author ? ' · ' + esc(data.author) : ''}</div></div>
+        <button class="link-btn" data-action="play-list" data-list="playlist">${icon('play')}Play playlist</button>
+      </div>
+      <section class="panel"><div class="panel-body tight">${trackRows(data.tracks, 'playlist')}</div></section>`;
+    markNowPlaying();
+  } catch (e) {
+    if (token !== state.token) return;
+    main.innerHTML = `<div class="empty-panel">Couldn't load playlist — ${esc(e.message)}</div>`;
+  }
+}
+
+/* ── artist / album ─────────────────────────────────────────────────────── */
+async function renderArtistView(id, name) {
+  const token = ++state.token;
+  main.innerHTML = `<div class="view-head"><div><h1>${esc(name || '…')}</h1><div class="sub">Loading artist…</div></div></div>${skeletons(8)}`;
+  try {
+    const qs = (id && id !== 'undefined') ? `id=${encodeURIComponent(id)}` : `name=${encodeURIComponent(name || '')}`;
+    const a = await api(`/api/artist?${qs}`);
+    if (token !== state.token) return;
+    state.viewLists.top = a.top_tracks;
+    const listeners = a.monthly_listeners ? `${Number(a.monthly_listeners).toLocaleString()} monthly listeners` : '';
+    main.innerHTML = `
+      <div class="artist-head">
+        <img src="${a.thumbnail ? imgp(a.thumbnail) : ''}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="ah-text">
+          <div class="eyebrow">Artist</div>
+          <h1>${esc(a.name)}</h1>
+          <div class="stats">${[a.subscribers ? `${a.subscribers} subscribers` : '', listeners].filter(Boolean).join(' · ')}</div>
+          ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
+          <div class="chips" style="margin-top:14px">
+            <button class="chip strong" data-action="artist-radio" data-artist-id="${esc(a.id)}" data-artist-name="${esc(a.name)}">${icon('spark')}&nbsp;Play artist radio</button>
+            ${a.top_tracks.length ? `<button class="chip" data-action="play-list" data-list="top">${icon('play')}&nbsp;Play top songs</button>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="grid2">
+        <section class="panel">
+          <div class="panel-head"><h2>${icon('play')}Top songs</h2></div>
+          <div class="panel-body tight">${trackRows(a.top_tracks, 'top')}</div>
+        </section>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          ${a.similar.length ? `<section class="panel">
+            <div class="panel-head"><h2>${icon('artist')}Fans also like</h2></div>
+            <div class="artist-strip">${a.similar.map(s => artistCard({ id: s.id, name: s.name, thumbnail: s.thumbnail })).join('')}</div></section>` : ''}
+          ${a.albums.length ? `<section class="panel">
+            <div class="panel-head"><h2>${icon('queue')}Albums &amp; singles</h2></div>
+            <div class="panel-body tight">${a.albums.map(al => `
+              <div class="feed-row" data-album="${esc(al.id)}" style="grid-template-columns:minmax(0,1fr) auto">
+                <div style="min-width:0"><div class="ft">${esc(al.title)}</div><div class="fa">${esc(al.type)}${al.year ? ' · ' + al.year : ''}</div></div>
+                <span style="color:var(--dim);font-size:12px">open →</span>
+              </div>`).join('')}</div></section>` : ''}
+        </div>
+      </div>`;
+    markNowPlaying();
+  } catch (e) {
+    if (token !== state.token) return;
+    main.innerHTML = `<div class="empty-panel">Couldn't load artist — ${esc(e.message)}</div>`;
+  }
+}
+
+async function renderAlbum(id) {
+  const token = ++state.token;
+  main.innerHTML = `<div class="crumbs"><button data-nav-to="overview">Dashboard</button>› <span>Album</span></div>${skeletons(8)}`;
+  try {
+    const al = await api(`/api/album?id=${encodeURIComponent(id)}`);
+    if (token !== state.token) return;
+    state.viewLists.album = al.tracks;
+    main.innerHTML = `
+      <div class="crumbs"><button data-nav-to="overview">Dashboard</button>› <span>Album</span></div>
+      <div class="view-head">
+        <div><h1>${esc(al.title)}</h1><div class="sub">${[al.year, `${al.tracks.length} tracks`].filter(Boolean).join(' · ')}</div></div>
+        <button class="link-btn" data-action="play-list" data-list="album">${icon('play')}Play album</button>
+      </div>
+      <section class="panel"><div class="panel-body tight">${trackRows(al.tracks, 'album')}</div></section>`;
+    markNowPlaying();
+  } catch (e) {
+    if (token !== state.token) return;
+    main.innerHTML = `<div class="empty-panel">Couldn't load album — ${esc(e.message)}</div>`;
+  }
+}
+
+/* ── recently played ────────────────────────────────────────────────────── */
+function renderRecentView() {
+  state.token++;
+  const recent = LS.get('recent', []);
+  state.viewLists.recent = recent;
+  main.innerHTML = `
+    <div class="view-head">
+      <div><h1>Recently played</h1><div class="sub">${recent.length} tracks from this browser</div></div>
+      ${recent.length ? `<button class="link-btn" data-action="play-list" data-list="recent">${icon('play')}Play all</button>` : ''}
+    </div>
+    <section class="panel"><div class="panel-body tight">${recent.length ? trackRows(recent, 'recent') : '<div class="empty-panel">Nothing played yet.</div>'}</div></section>`;
+  markNowPlaying();
+}
+
+/* ── playback ───────────────────────────────────────────────────────────── */
+function setQueue(list, startIndex, label, station = null) {
+  state.queue = list.slice();
+  state.queueSource = list;
+  state.index = startIndex;
+  state.queueLabel = label || null;
+  state.station = station || null;
+  refreshQueue();
+}
+
+function playTrackAt(i, { addToHistory = true } = {}) {
+  if (i < 0 || i >= state.queue.length) return;
+  const t = state.queue[i];
+  if (addToHistory && state.current) state.history = state.history || [];
+  state.index = i;
+  state.current = t;
+
+  $('#npTitle').textContent = t.title;
+  $('#npArtist').innerHTML = (t.artists || []).map(artistLink).join(', ') || esc(artistName(t));
+  $('#npArt').innerHTML = `<img src="${thumb(t.video_id)}" alt="">`;
+  $('#radioBadge').hidden = !state.station;
+  document.title = `${t.title} · ${artistName(t)} — Cadence`;
+  updateMediaSession(t);
+
+  setLoading(true);
+  audio.src = `/api/stream/${t.video_id}`;
+  audio.play().catch(err => {
+    setLoading(false);
+    if (!err || err.name === 'AbortError') return;
+    // give the stream diagnosis a moment to speak first — it knows the real reason
+    setTimeout(() => { if (!blockingReported) toast('Playback blocked — press play to start', true); }, 1500);
+  });
+
+  remember(t);
+  bufferAhead();
+  markNowPlaying();
+  refreshQueue();
+  paintNowPlaying();
+  paintFeed();
+  maybeGrow();
+}
+
+function remember(t) {
+  const recent = LS.get('recent', []).filter(x => x.video_id !== t.video_id);
+  recent.unshift({ video_id: t.video_id, title: t.title, artists: t.artists, artist_text: t.artist_text, album: t.album, duration: t.duration });
+  LS.set('recent', recent.slice(0, 20));
+}
+
+function togglePlay() {
+  if (!state.current) { go('/search'); toast('Pick a song first 🙂'); return; }
+  if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+}
+
+function next(auto = false) {
+  if (!state.queue.length) return;
+  if (state.repeat === 2 && auto) { audio.currentTime = 0; audio.play(); return; }
+  let i;
+  if (state.shuffle) { do { i = Math.floor(Math.random() * state.queue.length); } while (state.queue.length > 1 && i === state.index); }
+  else i = state.index + 1;
+  if (i >= state.queue.length) {
+    if (state.repeat === 1 || auto) {
+      growQueue().then(grew => {
+        if (grew) playTrackAt(state.index + 1);
+        else if (state.repeat === 1) playTrackAt(0);
+        else { toast('End of queue'); audio.pause(); }
+      });
+      return;
+    }
+    playTrackAt(0); return;
+  }
+  playTrackAt(i);
+}
+function prev() {
+  if (audio.currentTime > 4 || !state.queue.length) { audio.currentTime = 0; return; }
+  playTrackAt(Math.max(0, state.index - 1));
+}
+
+async function growQueue(force = false) {
+  if (state.growing) return false;
+  const seed = (state.current && state.current.video_id) || null;
+  if (!seed) return false;
+  state.growing = true;
+  try {
+    const data = await api(`/api/radio?videoId=${seed}&limit=25`);
+    const have = new Set(state.queue.map(t => t.video_id));
+    const fresh = (data.tracks || []).filter(t => !have.has(t.video_id));
+    if (!fresh.length) return false;
+    state.queue.push(...fresh);
+    state.suggestionsAdded += fresh.length;
+    state.station = 'Radio · ' + (state.current ? artistName(state.current) : 'station');
+    refreshQueue(); paintFeed(); paintStats();
+    $('#radioBadge').hidden = false;
+    if (force) toast(`+${fresh.length} suggestions queued`);
+    return true;
+  } catch (e) {
+    toast('Couldn\'t load suggestions: ' + e.message, true);
+    return false;
+  } finally { state.growing = false; }
+}
+function maybeGrow() { if (state.shuffle || state.repeat === 2) return; if (state.queue.length - state.index <= 4) growQueue(); }
+
+/* buffer-ahead telemetry */
+async function bufferAhead() {
+  const nxt = state.queue[state.index + 1];
+  state.buffered = { id: nxt ? nxt.video_id : null, ready: false, bytes: 0 };
+  paintStats();
+  if (!nxt) return;
+  await window.__SRC__.prefetch(nxt.video_id);
+  for (let attempt = 0; attempt < 24; attempt++) {
+    await new Promise(r => setTimeout(r, attempt < 6 ? 250 : 800));
+    if (state.buffered.id !== nxt.video_id) return;   // track changed meanwhile
+    try {
+      const d = await api(`/api/ready/${nxt.video_id}`);
+      if (d.cached) { state.buffered.ready = true; state.buffered.bytes = d.bytes; paintStats(); return; }
+    } catch {}
+  }
+}
+
+async function playSimilar(t) {
+  toast(`Finding songs similar to "${t.title}"…`);
+  try {
+    const data = await api(`/api/radio?videoId=${t.video_id}&limit=25`);
+    const rest = (data.tracks || []).filter(x => x.video_id !== t.video_id);
+    if (!rest.length) throw new Error('no suggestions came back');
+    setQueue([t, ...rest], 0, `Similar to ${t.title}`, `Radio · ${artistName(t)}`);
+    state.suggestionsAdded += rest.length;
+    playTrackAt(0);
+    toast(`▶ ${rest.length} songs like ${artistName(t)} queued`);
+  } catch (e) { toast("Couldn't get similar songs: " + e.message, true); }
+}
+
+async function playArtistRadio({ id, name }) {
+  toast(`Tuning ${name} radio…`);
+  try {
+    const data = await api(`/api/artist/radio?id=${encodeURIComponent(id)}&limit=30`);
+    const tracks = data.tracks || [];
+    if (!tracks.length) throw new Error('station came back empty');
+    setQueue(tracks, 0, `Artist radio · ${data.station_name || name}`, `Artist radio · ${data.station_name || name}`);
+    state.suggestionsAdded += tracks.length;
+    playTrackAt(0);
+    toast(`▶ ${data.station_name || name} radio — ${tracks.length} tracks`);
+  } catch (e) { toast('Radio failed: ' + e.message, true); }
+}
+
+/* ── queue rail ─────────────────────────────────────────────────────────── */
+function refreshQueue(label) {
+  const list = $('#queueList');
+  if (!list) return;
+  if (!state.queue.length) {
+    list.innerHTML = `<div class="queue-empty">Nothing queued yet.<br>Play a song and Cadence will suggest what's next.</div>`;
+    $('#queueSub').textContent = 'Suggestions appear as you listen';
+    return;
+  }
+  $('#queueTitle').textContent = label || state.queueLabel || 'Up next';
+  $('#queueSub').textContent = `Track ${state.index + 1} of ${state.queue.length}`;
+  list.innerHTML = state.queue.map((t, i) => `
+    <li class="qrow ${state.current && t.video_id === state.current.video_id ? 'now' : ''}" data-vid="${esc(t.video_id)}" data-qi="${i}">
+      <img src="${thumb(t.video_id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div><div class="qt">${esc(t.title)}</div><div class="qa">${esc(artistName(t))}</div></div>
+      <span class="qd">${esc(fmtTime(t.duration))}</span>
+    </li>`).join('');
+}
+
+/* ── audio plumbing ─────────────────────────────────────────────────────── */
+function setLoading(on) { $('#spinner').hidden = !on; }
+let errStreak = 0;
+audio.addEventListener('playing', () => { setLoading(false); setPlayIcon(true); markNowPlaying(); updateHeroState(); errStreak = 0; blockingReported = false; if (state.queue.length - state.index <= 4) growQueue(); });
+audio.addEventListener('pause', () => { setPlayIcon(false); updateHeroState(); });
+audio.addEventListener('waiting', () => setLoading(true));
+audio.addEventListener('canplay', () => setLoading(false));
+audio.addEventListener('timeupdate', () => {
+  const d = audio.duration || (state.current && state.current.duration) || 0;
+  const p = d ? (audio.currentTime / d) : 0;
+  $('#tCur').textContent = fmtTime(audio.currentTime);
+  $('#tDur').textContent = fmtTime(d);
+  if (!seeking) { $('#seek').value = Math.round(p * 1000); $('#seekFill').style.width = (p * 100) + '%'; }
+  if ($('#heroFacts')) paintStats();
+});
+audio.addEventListener('ended', () => next(true));
+audio.addEventListener('error', async () => {
+  setLoading(false);
+  if (!state.current) return;
+  const id = state.current.video_id;
+  const info = await diagnoseStream(id);
+
+  // YouTube refusing this server's IP won't be fixed by skipping tracks
+  if (info.kind === 'youtube_blocked') { reportBlocked(info); audio.pause(); return; }
+  if (info.kind === 'offline') {
+    toast('Backend unreachable — is the Flask app still running?', true, 9000);
+    audio.pause(); return;
+  }
+
+  if (++errStreak > 3) { toast('Several tracks failed to stream — pausing', true); audio.pause(); return; }
+  toast(`Couldn't stream "${state.current.title}" — skipping`, true);
+  setTimeout(() => next(true), 700);
+});
+audio.volume = LS.get('volume', 0.9);
+$('#vol').value = audio.volume;
+
+function setPlayIcon(playing) {
+  $('#playBtn').innerHTML = icon(playing ? 'pause' : 'play');
+  $('#playBtn').title = playing ? 'Pause (Space)' : 'Play (Space)';
+}
+setPlayIcon(false);
+
+let seeking = false;
+const seek = $('#seek');
+['input', 'change'].forEach(ev => seek.addEventListener(ev, () => {
+  const d = audio.duration || 0;
+  if (d) {
+    const t = (seek.value / 1000) * d;
+    $('#tCur').textContent = fmtTime(t);
+    $('#seekFill').style.width = (seek.value / 10) + '%';
+    $('#tDur').textContent = fmtTime(d);
+  }
+  if (ev === 'input') seeking = true;
+  if (ev === 'change') { if (d) audio.currentTime = (seek.value / 1000) * d; seeking = false; }
+}));
+seek.addEventListener('pointerup', () => { seeking = false; });
+
+$('#vol').addEventListener('input', e => {
+  audio.volume = Number(e.target.value);
+  if (audio.volume > 0) audio.muted = false;
+  LS.set('volume', audio.volume); syncMute();
+});
+function syncMute() { $('#muteBtn').innerHTML = icon(audio.muted || audio.volume === 0 ? 'mute' : 'vol'); }
+$('#muteBtn').addEventListener('click', () => { audio.muted = !audio.muted; syncMute(); });
+syncMute();
+
+$('#playBtn').addEventListener('click', togglePlay);
+$('#nextBtn').addEventListener('click', () => next(false));
+$('#prevBtn').addEventListener('click', prev);
+$('#shuffleBtn').addEventListener('click', e => { state.shuffle = !state.shuffle; e.currentTarget.classList.toggle('on', state.shuffle); toast(state.shuffle ? 'Shuffle on' : 'Shuffle off'); });
+$('#repeatBtn').addEventListener('click', e => {
+  state.repeat = (state.repeat + 1) % 3;
+  e.currentTarget.classList.toggle('on', state.repeat > 0);
+  e.currentTarget.innerHTML = icon(state.repeat === 2 ? 'repeat1' : 'repeat');
+  toast(['Repeat off', 'Repeat queue', 'Repeat track'][state.repeat]);
+});
+$('#queueList').addEventListener('click', e => { const row = e.target.closest('.qrow'); if (row) playTrackAt(Number(row.dataset.qi)); });
+$('#clearQueue').addEventListener('click', () => {
+  const keep = state.current;
+  state.queue = keep ? [keep] : []; state.index = keep ? 0 : -1; state.station = null;
+  $('#radioBadge').hidden = true; refreshQueue(); paintFeed(); paintStats(); toast('Queue cleared');
+});
+$('#queueToggle').addEventListener('click', e => {
+  const narrow = window.matchMedia('(max-width:900px)').matches;
+  if (narrow) $('#rail').classList.toggle('open');
+  else $('.body').classList.toggle('rail-hidden');
+  e.currentTarget.classList.toggle('active');
+});
+
+/* ── click delegation in the main area ──────────────────────────────────── */
+main.addEventListener('click', e => {
+  const navTo = e.target.closest('[data-nav-to]');
+  if (navTo) { go('/' + navTo.dataset.navTo); return; }
+
+  const artistEl = e.target.closest('[data-artist]');
+  if (artistEl) {
+    e.preventDefault();   // hash href keeps working when this is a synthetic click too
+    const id = artistEl.dataset.artistId || '';
+    const nm = artistEl.dataset.artistName || '';
+    if (id || nm) go(`/artist/${id ? encodeURIComponent(id) : ''}?name=${encodeURIComponent(nm)}`);
+    return;
+  }
+
+  const albumEl = e.target.closest('[data-album]');
+  if (albumEl) { e.preventDefault(); go(`/album/${encodeURIComponent(albumEl.dataset.album)}`); return; }
+
+  const genreEl = e.target.closest('[data-genre]');
+  if (genreEl) { go(`/genre/${encodeURIComponent(genreEl.dataset.genre)}?title=${encodeURIComponent(genreEl.dataset.title)}`); return; }
+
+  const plEl = e.target.closest('[data-playlist]');
+  if (plEl) { go(`/playlist/${encodeURIComponent(plEl.dataset.playlist)}?title=${encodeURIComponent(plEl.dataset.title)}`); return; }
+
+  const chip = e.target.closest('[data-search]');
+  if (chip) { $('#q').value = chip.dataset.search; runSearch(chip.dataset.search); return; }
+
+  const act = e.target.closest('[data-action]');
+  if (act) {
+    const a = act.dataset.action;
+    if (a === 'queue') {
+      e.stopPropagation();
+      const row = e.target.closest('.trow');
+      const list = state.viewLists[row.dataset.list] || [];
+      const t = list[Number(row.dataset.i)];
+      if (t) { state.queue.push(t); refreshQueue(); paintFeed(); paintStats(); toast(`Added "${t.title}" to queue`); }
+      return;
+    }
+    if (a === 'similar') {
+      e.stopPropagation();
+      const row = e.target.closest('.trow');
+      const list = state.viewLists[row.dataset.list] || [];
+      const t = list[Number(row.dataset.i)];
+      if (t) playSimilar(t);
+      return;
+    }
+    if (a === 'similar-now' && state.current) { playSimilar(state.current); return; }
+    if (a === 'open-settings') {
+      if (window.__SRC__ && window.__SRC__.openSettings) window.__SRC__.openSettings();
+      else toast('Settings are only available in the standalone file', true);
+      return;
+    }
+    if (a === 'playpause') { togglePlay(); return; }
+    if (a === 'play-list') {
+      const list = state.viewLists[act.dataset.list] || [];
+      if (list.length) { setQueue(list, 0, LABELS[act.dataset.list] || 'Playing list'); playTrackAt(0); }
+      return;
+    }
+    if (a === 'artist-radio') { playArtistRadio({ id: act.dataset.artistId, name: act.dataset.artistName }); return; }
+    if (a === 'surprise') {
+      const picks = ['Lo-fi hip hop', 'Daft Punk', 'Fleetwood Mac', 'Kendrick Lamar', 'Tame Impala', 'Nina Simone', 'Radiohead', 'Khruangbin'];
+      const pick = picks[Math.floor(Math.random() * picks.length)];
+      $('#q').value = pick; runSearch(pick);
+      return;
+    }
+  }
+
+  const row = e.target.closest('.trow');
+  if (row) {
+    const list = state.viewLists[row.dataset.list] || [];
+    const i = Number(row.dataset.i);
+    if (list.length) {
+      if (state.queueSource !== list) setQueue(list, i, LABELS[row.dataset.list] || 'Playing list');
+      playTrackAt(i);
+    }
+  }
+});
+
+/* suggestion feed rows live outside `main` re-renders when re-painted: delegate on document */
+document.addEventListener('click', e => {
+  const row = e.target.closest('.feed-row[data-qi]');
+  if (row) playTrackAt(Number(row.dataset.qi));
+});
+
+/* nav + hash routing */
+document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => go('/' + b.dataset.nav)));
+window.addEventListener('hashchange', renderRoute);
+
+/* ── search box ─────────────────────────────────────────────────────────── */
+let suggestTimer = null;
+const qInput = $('#q');
+function runSearch(q) { $('#q').value = q; hideSuggest(); go(`/search/${encodeURIComponent(q)}?q=${encodeURIComponent(q)}`); if (currentRoute() === `/search/${encodeURIComponent(q)}?q=${encodeURIComponent(q)}`) renderRoute(); }
+qInput.addEventListener('input', () => {
+  const v = qInput.value.trim();
+  clearTimeout(suggestTimer);
+  if (v.length < 2) { hideSuggest(); return; }
+  suggestTimer = setTimeout(fetchSuggestions, 160);
+});
+qInput.addEventListener('keydown', e => {
+  const box = $('#suggest');
+  const open = !box.hidden && state.suggestItems && state.suggestItems.length;
+  if (e.key === 'ArrowDown' && open) { e.preventDefault(); state.suggestActive = Math.min((state.suggestActive ?? -1) + 1, state.suggestItems.length - 1); paintSuggest(); }
+  else if (e.key === 'ArrowUp' && open) { e.preventDefault(); state.suggestActive = Math.max((state.suggestActive ?? -1) - 1, -1); paintSuggest(); }
+  else if (e.key === 'Enter') {
+    const v = (open && (state.suggestActive ?? -1) >= 0) ? state.suggestItems[state.suggestActive] : qInput.value;
+    if (v && v.trim()) runSearch(v.trim());
+  } else if (e.key === 'Escape') hideSuggest();
+});
+async function fetchSuggestions() {
+  const v = qInput.value.trim();
+  if (v.length < 2) return;
+  try {
+    const data = await api(`/api/suggest?q=${encodeURIComponent(v)}`);
+    if (qInput.value.trim() !== v) return;
+    state.suggestItems = data.suggestions || [];
+    state.suggestActive = -1;
+    paintSuggest();
+  } catch {}
+}
+function paintSuggest() {
+  const box = $('#suggest');
+  const items = state.suggestItems || [];
+  if (!items.length) { hideSuggest(); return; }
+  box.innerHTML = items.map((s, i) => `<div class="${i === state.suggestActive ? 'active' : ''}" data-s="${esc(s)}">${icon('search')}<span>${esc(s)}</span></div>`).join('');
+  box.hidden = false;
+}
+function hideSuggest() { $('#suggest').hidden = true; state.suggestActive = -1; }
+$('#suggest').addEventListener('mousedown', e => { const el = e.target.closest('[data-s]'); if (el) { e.preventDefault(); runSearch(el.dataset.s); } });
+document.addEventListener('click', e => { if (!e.target.closest('.searchwrap')) hideSuggest(); });
+
+/* ── keyboard + media session ───────────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  if (e.key === '/' && !typing) { e.preventDefault(); qInput.focus(); qInput.select(); return; }
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  switch (e.key.toLowerCase()) {
+    case ' ': e.preventDefault(); togglePlay(); break;
+    case 'n': next(false); break;
+    case 'p': prev(); break;
+    case 's': $('#shuffleBtn').click(); break;
+    case 'r': $('#repeatBtn').click(); break;
+    case 'm': $('#muteBtn').click(); break;
+    case 'q': $('#queueToggle').click(); break;
+    case 'arrowright': audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10); break;
+    case 'arrowleft': audio.currentTime = Math.max(0, audio.currentTime - 10); break;
+  }
+});
+if ('mediaSession' in navigator) {
+  navigator.mediaSession.setActionHandler('play', togglePlay);
+  navigator.mediaSession.setActionHandler('pause', togglePlay);
+  navigator.mediaSession.setActionHandler('nexttrack', () => next(false));
+  navigator.mediaSession.setActionHandler('previoustrack', prev);
+}
+function updateMediaSession(t) {
+  if (!('mediaSession' in navigator) || !t) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: t.title, artist: artistName(t), album: (t.album && t.album.name) || 'Cadence',
+      artwork: [{ src: thumb(t.video_id), sizes: '320x180', type: 'image/jpeg' }],
+    });
+  } catch {}
+}
+
+/* ── engine telemetry poll ──────────────────────────────────────────────── */
+let backendWarned = false;
+async function pollStats() {
+  if (document.hidden) return;
+  try {
+    const s = await api('/api/stats');
+    backendWarned = false;
+    $('#enCache').textContent = fmtBytes(s.cached_bytes);
+    $('#enTracks').textContent = s.cached_tracks;
+    $('#enDownloads').textContent = s.downloads + (s.download_failures ? ` (${s.download_failures} err)` : '');
+    $('#enAvg').textContent = s.avg_download_seconds ? `${s.avg_download_seconds}s` : '–';
+    $('#enInflight').textContent = s.downloads_inflight;
+    $('#enUptime').textContent = fmtDur(s.uptime_seconds);
+    $('#enBar').style.width = Math.min(100, (s.cached_bytes / s.cache_limit_bytes) * 100).toFixed(1) + '%';
+  } catch {
+    if (!backendWarned) {
+      backendWarned = true;
+      if (window.__SRC__.mode === 'demo') return;
+      toast('Backend not reachable — open ⚙ Settings to fix the URL or switch to Demo mode', true, 9000);
+    }
+  }
+}
+pollStats();
+setInterval(pollStats, 5000);
+
+/* ── boot ───────────────────────────────────────────────────────────────── */
+$('#brandLink').addEventListener('click', e => { e.preventDefault(); go('/overview'); });
+if (!location.hash) location.replace('#/overview');
+renderRoute();
+console.log('%c🎧 Cadence dashboard ready', 'color:#a78bfa;font-weight:bold');
+})();
+
+</script>
+</body>
+</html>

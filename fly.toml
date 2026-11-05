@@ -1,0 +1,35 @@
+# Fly.io — deploy with:  fly launch --copy-config --name <your-app> --region zrh
+# then attach storage:   fly volumes create cadence_cache --size 5 --region zrh
+app = "cadence"
+primary_region = "zrh"          # Zurich; other options: fra, ams, lhr
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  CADENCE_CACHE = "/data"
+  CADENCE_MAX_CACHE_BYTES = "3221225472"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"   # scale to zero when idle; first request wakes it
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/healthz"
+
+[[mounts]]
+  source = "cadence_cache"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

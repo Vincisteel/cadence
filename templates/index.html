@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence — stream anything</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.14v13.72c0 .8.87 1.3 1.56.9l11-6.86a1.05 1.05 0 0 0 0-1.8l-11-6.86c-.69-.4-1.56.1-1.56.9Z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 4h3.2v16H7zM13.8 4H17v16h-3.2z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M6 5.4v13.2c0 .77.85 1.24 1.5.84l9.6-6.6a1 1 0 0 0 0-1.68l-9.6-6.6c-.65-.4-1.5.07-1.5.84ZM18.4 4.6h2.2v14.8h-2.2z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M18 5.4v13.2c0 .77-.85 1.24-1.5.84l-9.6-6.6a1 1 0 0 1 0-1.68l9.6-6.6c.65-.4 1.5.07 1.5.84ZM5.6 4.6h-2.2v14.8h2.2z"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M17.6 4.1a1 1 0 0 0-1.1 1.1v.6h-2.3c-.4 0-.8.16-1.06.45l-1.2 1.3a1 1 0 0 0 1.47 1.36l1-1.1h2.1v.65a1 1 0 0 0 1.72.7l2.6-2.6a1 1 0 0 0 0-1.42l-2.6-2.6a1 1 0 0 0-.63-.44Zm.63 10.06h-2.1l-1-1.1a1 1 0 0 0-1.48 1.35l1.2 1.3c.27.3.66.46 1.06.46h2.3v.6a1 1 0 0 0 1.72.7l2.6-2.6a1 1 0 0 0 0-1.42l-2.6-2.6a1 1 0 0 0-1.72.7ZM4.3 6.4h2.9c.4 0 .79.16 1.06.45l7.4 8.05c.27.29.66.45 1.06.45h.9a1 1 0 1 0 0-2h-.5l-7.4-8.05A3 3 0 0 0 7.2 4.4H4.3a1 1 0 0 0 0 2Zm0 11.2h2.9a3 3 0 0 0 2.24-1c.5-.55.55-1.4.04-1.98a1 1 0 0 0-1.45-.08 1 1 0 0 1-.72.3h-3a1 1 0 0 0 0 2Z"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 4.3h8.6a4.4 4.4 0 0 1 4.4 4.4V11a1 1 0 1 1-2 0V8.7a2.4 2.4 0 0 0-2.4-2.4H7v1.55c0 .66-.8 1-1.26.53L3.3 6.14a.75.75 0 0 1 0-1.06l2.44-2.44c.46-.46 1.26-.13 1.26.53Zm10 15.4H8.4A4.4 4.4 0 0 1 4 15.3V13a1 1 0 1 1 2 0v2.3a2.4 2.4 0 0 0 2.4 2.4H17v-1.55c0-.66.8-1 1.26-.53l2.44 2.44c.3.3.3.77 0 1.06l-2.44 2.44c-.46.46-1.26.13-1.26-.53Z"/></symbol>
+  <symbol id="i-repeat1" viewBox="0 0 24 24"><path d="M7 4.3h8.6a4.4 4.4 0 0 1 4.4 4.4V11a1 1 0 1 1-2 0V8.7a2.4 2.4 0 0 0-2.4-2.4H7v1.55c0 .66-.8 1-1.26.53L3.3 6.14a.75.75 0 0 1 0-1.06l2.44-2.44c.46-.46 1.26-.13 1.26.53Zm10 15.4H8.4A4.4 4.4 0 0 1 4 15.3V13a1 1 0 1 1 2 0v2.3a2.4 2.4 0 0 0 2.4 2.4H17v-1.55c0-.66.8-1 1.26-.53l2.44 2.44c.3.3.3.77 0 1.06l-2.44 2.44c-.46.46-1.26.13-1.26-.53Z"/><path d="M12.9 9.4h-1.2v-.95l-1.5.46v-1.1l2.5-.83h.2Zm-1.6 4.2c-.9 0-1.6-.3-2.1-.9s-.75-1.4-.75-2.4v-.7c0-.6.1-1.1.3-1.6.2-.45.5-.8.9-1.05.4-.24.9-.36 1.5-.36s1.1.12 1.55.36c.4.24.7.6.9 1.05.2.46.3.98.3 1.57v.73c0 .6-.1 1.13-.3 1.6-.2.46-.5.81-.9 1.06-.4.25-.9.37-1.5.37Zm-.1-1.2c.4 0 .7-.14.9-.42.2-.3.3-.75.3-1.36v-1c0-.6-.1-1.05-.3-1.34-.2-.28-.5-.42-.9-.42s-.7.14-.9.42c-.2.3-.3.74-.3 1.35v1c0 .6.1 1.06.3 1.35.2.28.5.42.9.42Z" transform="translate(1.6 1.2)"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M13 4.6 8.6 8H5.4A1.4 1.4 0 0 0 4 9.4v5.2A1.4 1.4 0 0 0 5.4 16h3.2l4.4 3.4c.66.51 1.6.04 1.6-.79V5.39c0-.83-.94-1.3-1.6-.79Zm3.7 3.1a1 1 0 0 0-.09 1.41 4.3 4.3 0 0 1 0 5.78 1 1 0 1 0 1.5 1.32 6.3 6.3 0 0 0 0-8.42 1 1 0 0 0-1.41-.09Zm2.6-2.75a1 1 0 1 0-1.35 1.47 8.1 8.1 0 0 1 0 11.16 1 1 0 0 0 1.35 1.47 10.1 10.1 0 0 0 0-14.1Z"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M13 4.6 8.6 8H5.4A1.4 1.4 0 0 0 4 9.4v5.2A1.4 1.4 0 0 0 5.4 16h3.2l4.4 3.4c.66.51 1.6.04 1.6-.79V5.39c0-.83-.94-1.3-1.6-.79Zm4.3 5.1-1.7 1.7-1.7-1.7a1 1 0 0 0-1.42 1.42l1.7 1.7-1.7 1.7a1 1 0 0 0 1.42 1.41l1.7-1.7 1.7 1.7a1 1 0 0 0 1.41-1.41l-1.7-1.7 1.7-1.7a1 1 0 1 0-1.41-1.42Z"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6a1 1 0 0 1 1-1h9a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm0 5a1 1 0 0 1 1-1h9a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm0 5a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm19.1-2.1a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.6-4.4c.55 0 1 .45 1 1v7.4a3.6 3.6 0 0 1-3.6 3.6 1 1 0 0 1 0-2 1.6 1.6 0 0 0 1.6-1.6V10a1 1 0 0 1 1-1Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46l3.24 3.25a1.1 1.1 0 0 0 1.57-1.56l-3.25-3.24A7.5 7.5 0 0 0 10.5 3Zm0 2.2a5.3 5.3 0 1 1 0 10.6 5.3 5.3 0 0 1 0-10.6Z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.4c.3 0 .55.2.63.48l.86 3.2a4.4 4.4 0 0 0 3.13 3.13l3.2.86a.66.66 0 0 1 0 1.26l-3.2.86a4.4 4.4 0 0 0-3.13 3.13l-.86 3.2a.66.66 0 0 1-1.26 0l-.86-3.2a4.4 4.4 0 0 0-3.13-3.13l-3.2-.86a.66.66 0 0 1 0-1.26l3.2-.86A4.4 4.4 0 0 0 10.51 6.08l.86-3.2A.66.66 0 0 1 12 2.4Zm6.4 12.1c.17 0 .32.11.37.28l.4 1.44c.2.72.76 1.28 1.48 1.48l1.44.4a.38.38 0 0 1 0 .73l-1.44.4a2.1 2.1 0 0 0-1.48 1.48l-.4 1.44a.38.38 0 0 1-.73 0l-.4-1.44a2.1 2.1 0 0 0-1.48-1.48l-1.44-.4a.38.38 0 0 1 0-.73l1.44-.4a2.1 2.1 0 0 0 1.48-1.48l.4-1.44c.05-.17.2-.28.37-.28Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M11 5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6Z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 5a1 1 0 0 1 1.42 0L12 9.17 16.18 5A1 1 0 1 1 17.6 6.41L13.41 10.6l4.18 4.18a1 1 0 0 1-1.41 1.41L12 12.01l-4.18 4.18A1 1 0 0 1 6.4 14.78l4.18-4.18L6.4 6.41A1 1 0 0 1 6.4 5Z"/></symbol>
+  <symbol id="i-artist" viewBox="0 0 24 24"><path d="M12 11.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 1.1.9 2 2 2h12a2 2 0 0 0 2-2c0-3.04-3.58-5.5-8-5.5Z"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="#" id="brandLink">
+      <span class="brand-mark">
+        <span></span><span></span><span></span>
+      </span>
+      <span class="brand-name">Cadence</span>
+    </a>
+
+    <div class="searchwrap">
+      <svg class="sicon"><use href="#i-search"/></svg>
+      <input id="q" type="search" placeholder="Search songs, artists or albums…" autocomplete="off" spellcheck="false" aria-label="Search">
+      <kbd>/</kbd>
+      <div id="suggest" class="suggest" hidden></div>
+    </div>
+
+    <button class="ghost-btn" id="queueToggle" title="Queue (Q)">
+      <svg><use href="#i-queue"/></svg><span>Queue</span>
+    </button>
+  </header>
+
+  <main class="content">
+    <section class="view" id="view"></section>
+
+    <aside class="queue-panel" id="queuePanel">
+      <div class="queue-head">
+        <div>
+          <h2 id="queueTitle">Up next</h2>
+          <p id="queueSub">Suggestions appear as you listen</p>
+        </div>
+        <button class="icon-btn" id="clearQueue" title="Clear queue"><svg><use href="#i-close"/></svg></button>
+      </div>
+      <ol class="queue-list" id="queueList"></ol>
+    </aside>
+  </main>
+
+  <footer class="player" id="player">
+    <div class="np">
+      <div class="np-art" id="npArt"><svg><use href="#i-artist"/></svg></div>
+      <div class="np-meta">
+        <div class="np-title" id="npTitle">Nothing playing</div>
+        <div class="np-artist" id="npArtist">Search for a song to begin</div>
+      </div>
+      <button class="icon-btn in-queue" id="addCurrent" title="Add to queue" hidden><svg><use href="#i-plus"/></svg></button>
+    </div>
+
+    <div class="controls">
+      <div class="buttons">
+        <button class="icon-btn" id="shuffleBtn" title="Shuffle (S)"><svg><use href="#i-shuffle"/></svg></button>
+        <button class="icon-btn" id="prevBtn" title="Previous (P)"><svg><use href="#i-prev"/></svg></button>
+        <button class="play-btn" id="playBtn" title="Play / pause (Space)"><svg><use href="#i-play"/></svg></button>
+        <button class="icon-btn" id="nextBtn" title="Next (N)"><svg><use href="#i-next"/></svg></button>
+        <button class="icon-btn" id="repeatBtn" title="Repeat (R)"><svg><use href="#i-repeat"/></svg></button>
+      </div>
+      <div class="seekrow">
+        <span class="t" id="tCur">0:00</span>
+        <div class="seekwrap">
+          <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Seek">
+          <div class="seekfill" id="seekFill"><span></span></div>
+        </div>
+        <span class="t" id="tDur">0:00</span>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="spinner" id="spinner" hidden><span></span></div>
+      <span class="badge" id="radioBadge" hidden><svg><use href="#i-spark"/></svg>Radio</span>
+      <button class="icon-btn" id="muteBtn" title="Mute (M)"><svg><use href="#i-vol"/></svg></button>
+      <input type="range" id="vol" class="vol" min="0" max="1" step="0.01" value="0.9" aria-label="Volume">
+    </div>
+  </footer>
+</div>
+
+<audio id="audio" preload="auto" crossorigin="anonymous"></audio>
+<div class="toasts" id="toasts"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
